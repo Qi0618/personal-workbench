@@ -1,0 +1,3 @@
+.tile { fill: var(--dsw-alias-brand-mark-bg); }
+.mark { color: var(--dsw-alias-brand-mark-fg); }
+.name { font-family: var(--dsw-font-family-brand); font-size: 20px; font-weight: 500; letter-spacing: -.02em; }

@@ -4,7 +4,7 @@ import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-side
 /**
  * Render the official mark with the presentation requested by its host surface.
  * @param props - Host-supplied mark presentation.
- * @returns the official whale mark.
+ * @returns the Lumen C1 mark.
  */
 export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
   return <FishLogo size={size} />
@@ -12,7 +12,7 @@ export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
 
 /**
  * Render the official name artwork without its independently slotted mark.
- * @returns the official name wordmark.
+ * @returns the Lumen name wordmark.
  */
 export function OfficialBrandName() {
   return <BrandWordmark includeMark={false} />

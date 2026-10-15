@@ -1,4 +1,4 @@
-/** Build Simin's personal macOS bundle from the current local production packages. */
+/** Build the personal Lumen macOS bundle from the current local production packages. */
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -11,7 +11,7 @@ const root = fileURLToPath(new URL('../../..', import.meta.url))
 const desktop = join(root, 'apps/desktop')
 const build = join(desktop, '.desktop-build/simin-local')
 const deployed = join(build, 'deployed')
-const bundle = join(root, 'dist/Simin Lab.app')
+const bundle = join(root, 'dist/Lumen.app')
 const require = createRequire(join(desktop, 'package.json'))
 const electron = require('electron')
 const pnpmRoot = dirname(require.resolve('pnpm'))
@@ -100,7 +100,7 @@ function materializePackages(inputs, destination, extra = []) {
   return [...top.keys()]
 }
 
-if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('Simin personal bundle requires this arm64 Mac')
+if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('Lumen personal bundle requires this arm64 Mac')
 mkdirSync(build, { recursive: true })
 if (!process.argv.includes('--reuse-deploy')) {
   rmSync(deployed, { recursive: true, force: true })
@@ -136,10 +136,10 @@ cpSync(join(desktop, 'cli/dsh'), join(resources, 'runtime/cli/bin/dsh'))
 cpSync(join(desktop, 'lib/command-manager-entry.js'), join(resources, 'runtime/cli/command-manager.js'))
 writeFileSync(join(resources, 'runtime/versions.json'), JSON.stringify({ schemaVersion: 1, node: release.nodeVersion, pnpm: release.pnpmVersion }))
 writeFileSync(join(app, 'simin-main.mjs'), `import { app } from 'electron'\nprocess.env.DSH_HOME = ${JSON.stringify(home)}\nprocess.env.DSH_DESKTOP_OPEN_DEVTOOLS = '0'\napp.setPath('userData', ${JSON.stringify(userData)})\nawait import('./lib/main.js')\n`)
-writeFileSync(join(app, 'package.json'), JSON.stringify({ ...manifest, main: 'simin-main.mjs', name: 'simin-workbench', productName: 'Simin Lab', dshDesktopAppId: 'local.simin.workbench', dependencies: manifest.dependencies }))
-renameSync(join(bundle, 'Contents/MacOS/Electron'), join(bundle, 'Contents/MacOS/Simin'))
+writeFileSync(join(app, 'package.json'), JSON.stringify({ ...manifest, main: 'simin-main.mjs', name: 'simin-workbench', productName: 'Lumen', dshDesktopAppId: 'local.simin.workbench', dependencies: manifest.dependencies }))
+renameSync(join(bundle, 'Contents/MacOS/Electron'), join(bundle, 'Contents/MacOS/Lumen'))
 const plist = join(bundle, 'Contents/Info.plist')
-for (const [key, value] of Object.entries({ CFBundleIdentifier: 'local.simin.workbench', CFBundleName: 'Simin Lab', CFBundleDisplayName: 'Simin Lab', CFBundleExecutable: 'Simin', CFBundleShortVersionString: manifest.version, CFBundleVersion: '1', NSDesktopFolderUsageDescription: 'Simin Lab 需要访问桌面上的项目文件夹，以读取和保存你的项目文档。' })) {
+for (const [key, value] of Object.entries({ CFBundleIdentifier: 'local.simin.workbench', CFBundleName: 'Lumen', CFBundleDisplayName: 'Lumen', CFBundleExecutable: 'Lumen', CFBundleShortVersionString: manifest.version, CFBundleVersion: '1', NSDesktopFolderUsageDescription: 'Lumen 需要访问桌面上的项目文件夹，以读取和保存你的项目文档。' })) {
   execFileSync('/usr/bin/plutil', ['-replace', key, '-json', JSON.stringify(value), plist])
 }
 const icon = join(desktop, 'resources/simin.icns')
@@ -147,4 +147,4 @@ if (existsSync(icon)) { cpSync(icon, join(resources, 'simin.icns')); execFileSyn
 execFileSync('/usr/bin/codesign', ['--force', '--deep', '--sign', '-', bundle], { stdio: 'inherit' })
 execFileSync('/usr/bin/codesign', ['--verify', '--deep', '--strict', bundle], { stdio: 'inherit' })
 execFileSync('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister', ['-f', bundle])
-console.log(`Simin personal Mac application: ${bundle}`)
+console.log(`Lumen personal Mac application: ${bundle}`)

@@ -45,6 +45,7 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+/packages/typert/generator/tests/.generated-model-*/
 native/system/test/bin/
 
 # Personal workbench data and local handoff notes never belong in the public repository.

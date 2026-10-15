@@ -1,5 +1,5 @@
 ---
-description: "Simin 工作台导航、文档阅读、现有对话槽位、详情面板与主题呈现。"
+description: "Lumen 工作台导航、文档阅读、现有对话槽位、详情面板与主题呈现。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包在真实项目文件和现有对话上提供 Simin 个人工作台。AppFrame 负责视口测量、全局浮层与 Agent 详情浮动面板；SiminShell 负责导航和阅读。主题呈现器投影配色、正文字号与 document 元数据。
+本包在真实项目文件和现有对话上提供 Lumen 个人工作台。AppFrame 负责视口测量、全局浮层与 Agent 详情浮动面板；SiminShell 负责导航和阅读。主题呈现器投影配色、正文字号与 document 元数据。
 
 ## 目录
 
@@ -40,7 +40,7 @@ kind: "package-reference"
 <a id="window-chrome-seat"></a>
 ### 窗口 chrome 座
 
-Simin 的 macOS 图标轨以 48px 顶部内边距将标志放在红绿灯下方。页头通过 `data-window-drag` 标记可拖空间，控件保持可点。根浮层避让变量保留平台标题栏和原生全屏行为。`shell.leading` 仍为兼容保留注册，但此框架不渲染它。
+图标轨、首页及空项目的品牌 tile 使用墨蓝底、米白色的 Lumen C1 标志与圆角方形外框。Lumen 的 macOS 图标轨以 48px 顶部内边距将标志放在红绿灯下方。页头通过 `data-window-drag` 标记可拖空间，控件保持可点。根浮层避让变量保留平台标题栏和原生全屏行为。`shell.leading` 仍为兼容保留注册，但此框架不渲染它。
 
 ### 主题呈现
 

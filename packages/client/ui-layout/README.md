@@ -1,5 +1,5 @@
 ---
-description: "Simin workbench navigation, document reading, existing conversation slots, detail panels, and theme presentation."
+description: "Lumen workbench navigation, document reading, existing conversation slots, detail panels, and theme presentation."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-This package provides Simin's personal workbench over real project files and the existing conversation. AppFrame owns viewport measurement, shell overlays, and the floating Agent detail panel; SiminShell owns navigation and reading. The theme presenter projects palette, content font size, and document metadata.
+This package provides the Lumen personal workbench over real project files and the existing conversation. AppFrame owns viewport measurement, shell overlays, and the floating Agent detail panel; SiminShell owns navigation and reading. The theme presenter projects palette, content font size, and document metadata.
 
 ## Table of Contents
 
@@ -40,7 +40,7 @@ The root keeps the `main`, `rightbar`, `shell.bottom`, and `shell.overlay` slots
 <a id="window-chrome-seat"></a>
 ### Window-chrome seat
 
-Simin's macOS rail places its brand below the traffic lights with 48px top padding. The header marks draggable space with `data-window-drag`; controls remain clickable. The root overlay clearance variables retain the platform titlebar and native-fullscreen behavior. `shell.leading` remains registered for compatibility but is not rendered by this frame.
+The rail, home, and empty-project brand tiles use the Lumen C1 mark in cream on ink blue, with rounded-square corners. Lumen's macOS rail places its brand below the traffic lights with 48px top padding. The header marks draggable space with `data-window-drag`; controls remain clickable. The root overlay clearance variables retain the platform titlebar and native-fullscreen behavior. `shell.leading` remains registered for compatibility but is not rendered by this frame.
 
 ### Theme presentation
 

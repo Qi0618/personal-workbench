@@ -55,12 +55,19 @@
   flex: none;
   align-items: center;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--dsw-alias-brand-mark-bg);
+  color: var(--dsw-alias-brand-mark-fg);
 }
 
-/* Personal mark sits in the same primary ink as the greeting. */
+/* The C1 mark keeps its cream foreground on the shared ink-blue tile. */
 .fish {
   display: block;
-  color: var(--dsw-alias-label-primary);
+  width: 26px;
+  height: 26px;
+  color: inherit;
 }
 
 /* Workspace row sits 12px above the input card (figma y80 → y112). */

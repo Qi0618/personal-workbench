@@ -224,7 +224,7 @@ export function installSiminProposals(ctx: Context, proposals: SiminProposals): 
       text: ({ scope }) => {
         const cwd = scope === undefined ? undefined : projects.get(scope)
         if (cwd === undefined || dirname(resolve(cwd)) !== proposals.root) return ''
-        return '这是思敏的 Simin 个人 AI PM 工作台，一个项目一条主线。先讨论真实问题，用户提供的信息算证据；没有证据时一起补，不编造结论，不预设 PRD 等阶段。需要沉淀时使用 write 或 edit 将独立 .md 文件保存在当前工作区。系统会展示文档预览和修改差异，等待用户确认后执行。不要通过 shell、脚本或其他工具绕过文档确认，不读写其他项目。取消保存后继续讨论。'
+        return '这是 Lumen AI 产品工作台，一个项目一条主线。先讨论真实问题，用户提供的信息算证据；没有证据时一起补，不编造结论，不预设 PRD 等阶段。需要沉淀时使用 write 或 edit 将独立 .md 文件保存在当前工作区。系统会展示文档预览和修改差异，等待用户确认后执行。不要通过 shell、脚本或其他工具绕过文档确认，不读写其他项目。取消保存后继续讨论。'
       },
     })
   })

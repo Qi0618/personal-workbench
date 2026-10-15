@@ -34,7 +34,17 @@ export class BootPage {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
     this.card = div(css.card)
-    this.wordmark = div(css.wordmark, 'HARNESS')
+    this.wordmark = div(css.wordmark, 'Lumen')
+    const mark = div(css.mark)
+    mark.setAttribute('aria-hidden', 'true')
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    svg.setAttribute('viewBox', '0 0 100 100')
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+    path.setAttribute('d', 'M8 0H63L47 100H8A8 8 0 0 1 0 92V8A8 8 0 0 1 8 0Z M67 0H92A8 8 0 0 1 100 8V86L86 100H61Z')
+    path.setAttribute('fill', 'currentColor')
+    svg.append(path)
+    mark.append(svg)
+    this.wordmark.prepend(mark)
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
     this.hint = div(css.hint, 'Loading plugins…')

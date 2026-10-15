@@ -1,7 +1,8 @@
 <svg width="472" height="40" viewBox="0 0 472 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <style>@media (prefers-color-scheme: dark) { .wordmark { fill: #F3F2EE; } }</style>
   <g transform="translate(176 4)">
-    <rect width="32" height="32" rx="8" fill="#111111"/>
-    <text x="16" y="22" text-anchor="middle" fill="#ffffff" font-size="18" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">思</text>
-    <text x="44" y="23" fill="#111111" font-size="20" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">AIPM</text>
+    <rect width="32" height="32" rx="7" fill="#152033"/>
+    <path d="M8 0H63L47 100H8A8 8 0 0 1 0 92V8A8 8 0 0 1 8 0Z M67 0H92A8 8 0 0 1 100 8V86L86 100H61Z" transform="translate(6 6) scale(.2)" fill="#F3F2EE"/>
+    <text class="wordmark" x="44" y="23" fill="#152033" font-size="20" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">Lumen</text>
   </g>
 </svg>

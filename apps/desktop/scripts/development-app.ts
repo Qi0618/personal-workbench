@@ -11,6 +11,8 @@ export interface DevelopmentAppOptions {
   readonly directory: string
   readonly home: string
   readonly userData: string
+  /** Prepared target runtime retained for Launch Services cold starts. */
+  readonly primaryRuntime: string
   readonly mainPort: number
   readonly rendererPort: number
   readonly hostPort: number
@@ -26,8 +28,8 @@ function quote(value: string): string { return `'${value.replaceAll("'", "'\\''"
  */
 export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
   const source = dirname(dirname(dirname(options.electron)))
-  const bundle = join(options.directory, 'Simin Lab.app')
-  const executable = join(bundle, 'Contents', 'MacOS', 'AIPM')
+  const bundle = join(options.directory, 'Lumen.app')
+  const executable = join(bundle, 'Contents', 'MacOS', 'Lumen')
   const stamp = join(bundle, 'Contents', 'Resources', 'dsh-development.json')
   const launcher = developmentLauncher(options, bundle)
   const icon = join(options.appRoot, 'resources', 'simin.icns')
@@ -39,9 +41,9 @@ export function prepareDevelopmentApp(options: DevelopmentAppOptions): string {
     const plist = join(bundle, 'Contents', 'Info.plist')
     const values = {
       CFBundleIdentifier: `com.deepseek.harness.dev.${createHash('sha256').update(options.appRoot).digest('hex').slice(0, 12)}`,
-      CFBundleName: 'Simin Lab',
-      CFBundleDisplayName: 'Simin Lab',
-      CFBundleExecutable: 'AIPM',
+      CFBundleName: 'Lumen',
+      CFBundleDisplayName: 'Lumen',
+      CFBundleExecutable: 'Lumen',
       CFBundleIconFile: 'simin.icns',
       CFBundleURLTypes: [{ CFBundleURLName: 'DeepSeek Harness', CFBundleURLSchemes: ['dsh'], CFBundleTypeRole: 'Viewer' }],
     }
@@ -67,6 +69,7 @@ export function developmentLauncher(options: DevelopmentAppOptions, bundle: stri
   const environment = {
     DSH_HOME: options.home,
     DSH_DESKTOP_DEV_APP: '1',
+    DSH_DESKTOP_PRIMARY_RUNTIME_DIR: options.primaryRuntime,
     DSH_DESKTOP_HOST_INSPECT_PORT: String(options.hostPort),
     DSH_DESKTOP_OPEN_DEVTOOLS: options.openDevtools,
     ELECTRON_ENABLE_LOGGING: '1',
