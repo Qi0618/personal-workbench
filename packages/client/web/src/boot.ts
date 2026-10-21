@@ -47,6 +47,14 @@ export class AppWebEntry {
    * @returns Resolves after application mount or failure reporting.
    */
   async run(onFailure?: (reason: unknown) => void): Promise<void> {
+    let failed = false
+    const report = (reason: unknown): void => {
+      if (failed) return
+      failed = true
+      console.error(reason)
+      if (onFailure !== undefined) { this.page.restore(); onFailure(reason) }
+      else this.page.fail(reason instanceof Error ? reason.message : String(reason))
+    }
     try {
       // Boot-readiness gate: whichever bootstrap applies the injection table
       // settles this deferred once every row has taken effect — the served
@@ -94,11 +102,9 @@ export class AppWebEntry {
       // know that trap. It installs before the first mount, so the surface the
       // renderer draws is the one the first frame measures.
       this.stopDragRecall = installWindowDragRecall({ document: this.container.ownerDocument })
-      await mountClient(ctx, this.container)
+      await mountClient(ctx, this.container, report)
     } catch (reason) {
-      console.error(reason)
-      if (onFailure !== undefined) onFailure(reason)
-      else this.page.fail(reason instanceof Error ? reason.message : String(reason))
+      report(reason)
     }
   }
 

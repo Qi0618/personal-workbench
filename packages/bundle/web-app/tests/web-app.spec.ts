@@ -9,7 +9,7 @@
 
 import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -95,6 +95,22 @@ function fakeHttpServer(host: '127.0.0.1' | '0.0.0.0' = '127.0.0.1'): { server: 
   return { server, seat: () => fallback, routes }
 }
 
+async function workbenchRequest(routes: Map<string, WebRoute['handler']>, path: string, payload?: Record<string, unknown>): Promise<{ status: number; data: unknown }> {
+  const socket = new Socket()
+  Object.defineProperty(socket, 'remoteAddress', { value: '127.0.0.1' })
+  const req = new IncomingMessage(socket)
+  req.url = path
+  req.method = payload === undefined ? 'GET' : 'POST'
+  if (payload !== undefined) req.push(JSON.stringify(payload))
+  req.push(null)
+  const res = new ServerResponse(req)
+  const end = vi.spyOn(res, 'end').mockImplementation(() => res)
+  try {
+    await routes.get(path)!(req, res)
+    return { status: res.statusCode, data: JSON.parse(String(end.mock.calls[0]?.[0])) }
+  } finally { socket.destroy() }
+}
+
 /** Deterministic Host Connection face for URL publication and frontend injection. */
 function provideConnection(ctx: Context): void {
   ctx.provide('connection', {
@@ -123,6 +139,47 @@ interface BashContribution {
 }
 
 describe('web-app runtime glue', () => {
+  it('renames project titles and deletes only the confirmed project through Loader-mounted routes', async () => {
+    stageDist()
+    const root = mkdtempSync(join(tmpdir(), 'simin-project-routes-'))
+    onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    const { server, routes } = fakeHttpServer()
+    ctx.provide('webServer', server)
+    provideConnection(ctx)
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.workbench = { apply, Config }
+    await ctx.loader.root.update([{ id: 'workbench', name: 'cordis:workbench', config: {
+      projectRoot: root, openBrowser: false, printUrl: false, surfaceContext: false,
+    } }])
+    await ctx.loader.await()
+    await ctx.loader.resolve('workbench').fiber?.await()
+    const created = await workbenchRequest(routes, '/aipm/projects', { name: '原项目' })
+    expect(created.status).toBe(201)
+    expect(created.data).toMatchObject({ title: '原项目' })
+    if (typeof created.data !== 'object' || created.data === null || !('version' in created.data)
+      || typeof created.data.version !== 'string'
+      || !('name' in created.data) || typeof created.data.name !== 'string'
+      || !('path' in created.data) || typeof created.data.path !== 'string') throw new Error('missing created fields')
+    const version = created.data.version
+    const { name, path } = created.data
+    expect(name).toMatch(/^project-/u)
+    expect(path).toBe(join(root, name))
+    writeFileSync(join(path, 'a.md'), 'preserved')
+    const renamed = await workbenchRequest(routes, '/aipm/mutate', { op: 'renameProject', project: name, name: '新名称', version })
+    expect(renamed).toMatchObject({ status: 200, data: { ok: true, project: { name, title: '新名称', path, version } } })
+    expect(readFileSync(join(path, 'a.md'), 'utf8')).toBe('preserved')
+    const stale = await workbenchRequest(routes, '/aipm/mutate', { op: 'deleteProject', project: name, version: 'stale' })
+    expect(stale).toEqual({ status: 409, data: { error: 'projectConflict' } })
+    expect(existsSync(path)).toBe(true)
+    const refused = await workbenchRequest(routes, '/aipm/mutate', { op: 'deleteProject', project: name })
+    expect(refused).toEqual({ status: 400, data: { error: 'invalidData' } })
+    const deleted = await workbenchRequest(routes, '/aipm/mutate', { op: 'deleteProject', project: name, version })
+    expect(deleted).toEqual({ status: 200, data: { ok: true } })
+    expect(existsSync(path)).toBe(false)
+    expect((await workbenchRequest(routes, '/aipm/projects')).data).toEqual({ projects: [] })
+  })
   it('defaults projects to this checkout and resolves configured roots before activation', () => {
     expect(new Config({}).projectRoot).toBe(fileURLToPath(new URL('../../../../projects', import.meta.url)))
     expect(new Config({ projectRoot: 'custom-projects' }).projectRoot).toBe(join(process.cwd(), 'custom-projects'))

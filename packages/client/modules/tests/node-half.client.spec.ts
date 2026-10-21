@@ -719,6 +719,35 @@ describe('client bundle activation', () => {
     expect(onGraphChanged).not.toHaveBeenCalled()
   })
 
+  it('absorbs a ctime-only metadata change without replacing identical executable bytes', async () => {
+    const packageName = '@fixture/status-only-rebuild'
+    const clientPath = writePackage(packageName)
+    mkdirSync(dirname(clientPath), { recursive: true })
+    writeFileSync(clientPath, 'module.exports = {}\n')
+    const timestamp = new Date(1_700_000_000_000)
+    utimesSync(clientPath, timestamp, timestamp)
+    const service = construct([packageName])
+    const before = service.artifactBaseline(packageName)!
+    const graph = service.graph()
+    const onRebuilt = vi.fn()
+    const onGraphChanged = vi.fn()
+    service.onRebuilt(onRebuilt)
+    service.onGraphChanged(onGraphChanged)
+
+    await expect.poll(() => {
+      utimesSync(clientPath, timestamp, timestamp)
+      return statSync(clientPath).ctimeMs
+    }).not.toBe(before.ctimeMs)
+    const after = statSync(clientPath)
+    expect(after).toMatchObject({ mtimeMs: before.mtimeMs, size: before.size })
+
+    expect(service.rebuilt(packageName)).toBe(graph.entries[0]!.rev)
+    expect(service.graph()).toBe(graph)
+    expect(service.artifactBaseline(packageName)).toEqual({ ...before, ctimeMs: after.ctimeMs })
+    expect(onRebuilt).not.toHaveBeenCalled()
+    expect(onGraphChanged).not.toHaveBeenCalled()
+  })
+
   it('hashes only metadata when publishing initial and rebuilt artifact revisions', () => {
     const packageName = '@fixture/metadata-revision'
     const clientPath = writePackage(packageName)

@@ -30,7 +30,7 @@ export class BootPage {
    * Build and attach the boot page.
    * @param container - Application mount point.
    */
-  constructor(container: HTMLElement) {
+  constructor(private readonly container: HTMLElement) {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
     this.card = div(css.card)
@@ -82,6 +82,12 @@ export class BootPage {
   fail(message: string): void {
     this.failure = message
     this.render()
+    this.restore()
+  }
+
+  /** Reattach the loading page after a failed application tree has unmounted. */
+  restore(): void {
+    if (this.root.parentElement !== this.container) this.container.append(this.root)
   }
 
   /** Detach the page before or after the UI renderer takes the mount point. */

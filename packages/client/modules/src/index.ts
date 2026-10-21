@@ -707,6 +707,8 @@ export class ClientModuleRegistry extends Service {
    * Publish one completed bundle generation (the HMR watch's registration
    * hook — the only entry point through which build changes reach the graph).
    * Unchanged mtime, ctime and size preserve the graph without reading the bundle.
+   * A ctime-only change with identical entry bytes updates the baseline without reloading.
+   * A changed mtime remains a build-completion signal for package-local chunks.
    * @param id - entry id (package name).
    * @returns the current artifact rev, or undefined for an unknown id.
    */
@@ -714,9 +716,16 @@ export class ClientModuleRegistry extends Service {
     const record = this.table.get(id)
     if (record === undefined) return undefined
     const baseline = this.captureArtifactBaseline(record.meta.clientPath)
+    if (baseline.mtimeMs === record.baseline.mtimeMs && baseline.ctimeMs === record.baseline.ctimeMs
+      && baseline.size === record.baseline.size) return record.entry.rev
     const rev = artifactRevision(baseline)
     if (rev === record.entry.rev) return rev
     const bundle = readFileSync(record.meta.clientPath)
+    if (baseline.mtimeMs === record.baseline.mtimeMs && baseline.size === record.baseline.size
+      && bundle.equals(record.bundle)) {
+      record.baseline = baseline
+      return record.entry.rev
+    }
     record.baseline = baseline
     record.entry = graphRow(id, rev, record.meta)
     record.bundle = bundle

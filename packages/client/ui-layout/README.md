@@ -29,6 +29,8 @@ Home lays out actual project folders in four columns on wide windows and fewer c
 
 Reading and conversation share the project view on wide windows; narrower windows switch between them. Save proposals display content or line differences before confirmation. File mutations carry the observed content version; conflicts retain the current document. Navigation and display preferences use localStorage; document bodies remain on disk.
 
+Each project card has a top-right actions menu in both grid and list views. Rename updates the display title and preserves the folder path, documents, and conversation workspace. Delete requires confirmation and permanently removes the project, its files, associated trashed documents, and save records. Cancel is initially focused in the deletion dialog. Failed operations retain the card and dialog; successful operations update navigation and the project list. Before deletion, projects with pending document saves must finish or cancel them first.
+
 The project sidebar has one primary New document action for the current project. Only project headers show a breadcrumb; global pages omit it. Project headers retain search and focus controls; New project actions remain on global pages. Conversation mode has no extra workbench title bar; the sidebar's document entries return to reading.
 
 Workbench navigation and template entries use a selected set of [Heroicons v2.2.0 solid icons](https://github.com/tailwindlabs/heroicons/tree/v2.2.0/optimized/24/solid); their MIT license is retained in [SiminIcons](src/client/SiminIcons.tsx). Templates appear as flat rows with thin dividers, monochrome icons, and the shared rounded action style. Each preview dialog names its selected starting point.

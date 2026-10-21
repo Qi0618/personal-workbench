@@ -39,6 +39,8 @@ kind: "package-library"
 
 启动页使用原生 DOM 与本地 CSS 显示 Lumen 名称与 C1 tile，因此 bundle 与插件激活失败保持可见：它显示一个 spinner 节点，其 CSS 圆弧随 entry 激活而增长，并逐 entry 报告状态。spinner 及其动画相位会一直保留，直到完整 UI 替换启动页。导入或激活失败的插件会按名称报告并给出原因（缺失服务、导入失败或状态），而不是白屏。控制台包含原始导入错误。
 
+挂载后的根 entry 崩溃或未被捕获的应用组装错误，会先卸载失败的 React 树，再恢复启动页。浏览器调用方会看到错误报告；Desktop 只向原生恢复流程转发一次。叶子 Slot 的错误仍隔离在可工作的应用内部。已释放或替换的挂载不会报告迟到的错误。
+
 ### 共享模块表
 
 `PLATFORM_MODULES`（位于 `src/platform.ts`）列出外壳预置的共享模块——React、Cordis 与静态 UI 库——并与 `PRELOADED_CLIENT_EXTERNALS`（parser 预载的运行时行）一起定义每个动态 bundle 解析所依据的隐式 external 基座。`dsh.client.external` 只添加基座之外的精确请求；参见[共享模块与模块图](../AGENTS.md#shared-modules-and-the-module-graph)。

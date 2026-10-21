@@ -59,4 +59,12 @@ describe('BootPage', () => {
     page.dispose()
     expect(el.childNodes).toHaveLength(0)
   })
+
+  it('restores a visible report after application rendering removed the boot page', () => {
+    const { el, page } = mount()
+    el.replaceChildren()
+    page.fail('application root failed')
+    expect(el.textContent).toContain('Failed to load plugins')
+    expect(el.textContent).toContain('application root failed')
+  })
 })

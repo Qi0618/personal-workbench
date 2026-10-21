@@ -1,6 +1,6 @@
 /** Local project documents, versioned mutations, and recoverable trash for Simin. */
-import { constants } from 'node:fs'
-import { open, mkdir, readdir, lstat, writeFile, rename, unlink, link } from 'node:fs/promises'
+import { constants, type Stats } from 'node:fs'
+import { open, mkdir, readdir, lstat, writeFile, rename, unlink, link, rmdir } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
 import { join, resolve } from 'node:path'
 
@@ -16,7 +16,7 @@ export class SiminFileError extends Error {
 /** A document's disk metadata and a short content preview. */
 export interface SiminFile { name: string; modifiedAt: number; bytes: number; preview: string }
 /** One real project directory. */
-export interface SiminProject { name: string; path: string; documents: string[]; files: SiminFile[] }
+export interface SiminProject { name: string; title: string; path: string; version: string; documents: string[]; files: SiminFile[] }
 /** Deleted file metadata retained beside its content. */
 export interface SiminTrash { id: string; project: string; file: string; deletedAt: number; version: string; markdown: string }
 /** Current UTF-8 content with its optimistic mutation token. */
@@ -52,6 +52,13 @@ function documentName(value: unknown): string {
 }
 function missing(error: unknown): boolean { return error instanceof Error && 'code' in error && error.code === 'ENOENT' }
 function exists(error: unknown): boolean { return error instanceof Error && 'code' in error && error.code === 'EEXIST' }
+function projectVersion(info: Stats): string { return siminVersion(`${info.dev}:${info.ino}:${info.birthtimeMs}`) }
+async function removeTree(path: string): Promise<void> {
+  const info = await lstat(path)
+  if (info.isSymbolicLink() || !info.isDirectory()) { await unlink(path); return }
+  for (const name of await readdir(path)) await removeTree(join(path, name))
+  await rmdir(path)
+}
 async function regularText(path: string): Promise<string> {
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW)
   try {
@@ -88,6 +95,13 @@ export class SiminFiles {
     if (!info.isDirectory() || info.isSymbolicLink()) throw new SiminFileError('invalidProject')
     return path
   }
+  private async checkedProject(project: string, version: string): Promise<string> {
+    let path: string
+    try { path = await this.directory(project) }
+    catch (error: unknown) { if (missing(error)) throw new SiminFileError('projectConflict', 409); throw error }
+    if (projectVersion(await lstat(path)) !== version) throw new SiminFileError('projectConflict', 409)
+    return path
+  }
   private async internal(folder: string): Promise<string> {
     await mkdir(this.root, { recursive: true })
     const metadata = join(this.root, '.simin')
@@ -103,6 +117,14 @@ export class SiminFiles {
     this.tail = next.then(() => {}, () => {})
     return next
   }
+  private async projectTitle(project: string, version: string): Promise<string> {
+    const path = join(await this.internal('projects'), `${siminVersion(project)}.json`)
+    let text: string
+    try { text = await regularText(path) } catch (error: unknown) { if (missing(error)) return project; throw error }
+    const data = record(JSON.parse(text))
+    if (typeof data.version !== 'string') throw new SiminFileError('invalidData')
+    return data.version === version ? siminSegment(data.title) : project
+  }
   /**
    * List actual project directories and readable documents.
    * @returns real project rows and previews; hidden metadata and links are excluded.
@@ -110,7 +132,7 @@ export class SiminFiles {
   async projects(): Promise<SiminProject[]> {
     await mkdir(this.root, { recursive: true })
     const entries = await readdir(this.root, { withFileTypes: true })
-    return Promise.all(entries.filter(item => item.isDirectory() && !item.name.startsWith('.'))
+    const projects = await Promise.all(entries.filter(item => item.isDirectory() && !item.name.startsWith('.'))
       .sort((a, b) => a.name.localeCompare(b.name, 'zh')).map(async (item) => {
         const path = await this.directory(item.name)
         const names = (await readdir(path, { withFileTypes: true })).filter(file => file.isFile() && siminIsDocument(file.name))
@@ -122,20 +144,88 @@ export class SiminFiles {
           if (info.size <= 2_000_000) preview = (await regularText(target)).slice(0, 320).replace(/[#*`>]/gu, '').trim()
           return { name: file.name, bytes: info.size, modifiedAt: info.mtimeMs, preview }
         }))
-        return { name: item.name, path, documents: names.map(file => file.name), files }
+        const version = projectVersion(await lstat(path))
+        return { name: item.name, title: await this.projectTitle(item.name, version), path, version,
+          documents: names.map(file => file.name), files }
       }))
+    return projects.sort((a, b) => a.title.localeCompare(b.title, 'zh'))
   }
   /**
    * Create an empty project directory without replacing an existing one.
-   * @param name - desired directory name.
-   * @returns a new, empty project; duplicates refuse.
+   * @param name - desired displayed title.
+   * @returns a new, empty project with a fresh directory key; duplicate titles refuse.
    */
-  async create(name: unknown): Promise<SiminProject> {
-    const project = siminSegment(name)
-    await mkdir(this.root, { recursive: true })
-    const path = join(this.root, project)
-    try { await mkdir(path) } catch (error: unknown) { if (exists(error)) throw new SiminFileError('duplicate', 409); throw error }
-    return { name: project, path, documents: [], files: [] }
+  create(name: unknown): Promise<SiminProject> {
+    return this.mutate(async () => {
+      const title = siminSegment(name)
+      await mkdir(this.root, { recursive: true })
+      if ((await this.projects()).some(item => item.title.toLowerCase() === title.toLowerCase())) throw new SiminFileError('duplicate', 409)
+      const project = `project-${randomUUID()}`
+      const path = join(this.root, project)
+      await mkdir(path)
+      const version = projectVersion(await lstat(path))
+      try { await this.writeProjectTitle(project, title, version) }
+      catch (error: unknown) { await rmdir(path); throw error }
+      return { name: project, title, path, version, documents: [], files: [] }
+    })
+  }
+  private async projectTrash(project: string): Promise<{ dir: string; items: Omit<SiminTrash, 'markdown'>[] }> {
+    const dir = await this.internal('trash')
+    const items: Omit<SiminTrash, 'markdown'>[] = []
+    for (const file of await readdir(dir)) {
+      if (!/^[a-f0-9-]{36}\.json$/u.test(file)) continue
+      const meta = trashRecord(JSON.parse(await regularText(join(dir, file))))
+      if (meta.project === project) items.push(meta)
+    }
+    return { dir, items }
+  }
+  private async deleteProjectTrash(trash: Awaited<ReturnType<SiminFiles['projectTrash']>>): Promise<void> {
+    const { dir, items } = trash
+    for (const meta of items) {
+      const file = `${meta.id}.json`
+      try { await unlink(join(dir, `${meta.id}.txt`)) } catch (error: unknown) { if (!missing(error)) throw error }
+      await unlink(join(dir, file))
+    }
+  }
+  private async writeProjectTitle(project: string, title: string, version: string): Promise<void> {
+    const dir = await this.internal('projects')
+    const temporary = join(dir, `${randomUUID()}.tmp`)
+    await writeFile(temporary, JSON.stringify({ title, version }), { flag: 'wx', mode: 0o600 })
+    try { await rename(temporary, join(dir, `${siminVersion(project)}.json`)) }
+    finally { try { await unlink(temporary) } catch (error: unknown) { if (!missing(error)) throw error } }
+  }
+  /**
+   * Rename a project's displayed title without changing its directory or conversation identity.
+   * @param project - current directory name.
+   * @param name - new displayed title; duplicate visible titles are refused.
+   * @param version - observed directory identity; replaced projects are refused.
+   * @returns canonical project name and absolute path.
+   */
+  renameProject(project: string, name: string, version: string): Promise<Pick<SiminProject, 'name' | 'title' | 'path' | 'version'>> {
+    return this.mutate(async () => {
+      const stableName = siminSegment(project)
+      const title = siminSegment(name)
+      const path = await this.checkedProject(stableName, version)
+      if ((await this.projects()).some(item => item.name !== stableName && item.title.toLowerCase() === title.toLowerCase())) throw new SiminFileError('duplicate', 409)
+      await this.writeProjectTitle(stableName, title, version)
+      return { name: stableName, title, path, version }
+    })
+  }
+  /**
+   * Permanently remove a real project, all its contents, and its document trash.
+   * @param project - confirmed project directory name.
+   * @param version - observed directory identity; replaced projects are refused.
+   */
+  deleteProject(project: string, version: string): Promise<void> {
+    return this.mutate(async () => {
+      const name = siminSegment(project)
+      const path = await this.checkedProject(name, version)
+      const trash = await this.projectTrash(name)
+      await removeTree(path)
+      await this.deleteProjectTrash(trash)
+      try { await unlink(join(await this.internal('projects'), `${siminVersion(name)}.json`)) }
+      catch (error: unknown) { if (!missing(error)) throw error }
+    })
   }
   /**
    * Read a regular document and its content version.
@@ -151,10 +241,14 @@ export class SiminFiles {
    * Read a document when it exists.
    * @param project - directory name.
    * @param file - document name.
-   * @returns content, or null only for absence.
+   * @returns content, or null only for an absent file in an existing project.
    */
   async optional(project: string, file: string): Promise<SiminDocument | null> {
-    try { return await this.read(project, file) } catch (error: unknown) { if (missing(error)) return null; throw error }
+    const path = join(await this.directory(project), documentName(file))
+    try {
+      const markdown = await regularText(path)
+      return { markdown, version: siminVersion(markdown) }
+    } catch (error: unknown) { if (missing(error)) return null; throw error }
   }
   private async checked(project: string, file: string, version: unknown): Promise<SiminDocument | null> {
     const current = await this.optional(project, file)

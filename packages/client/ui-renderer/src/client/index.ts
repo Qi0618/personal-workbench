@@ -3,7 +3,7 @@
  * dependencies activate and exposes the mount operation used by the web boot
  * kernel after the complete client roster settles.
  */
-import { createElement, useLayoutEffect, useState, type ReactNode } from 'react'
+import { Component, createElement, useLayoutEffect, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import type { Context } from '@deepseek-ai/cordis'
@@ -25,9 +25,10 @@ export interface UiRendererService {
   /**
    * Mount the assembled application into the supplied element.
    * @param container - Application mount point.
+   * @param onFailure - Carrier-owned recovery for root entry or application assembly failures; leaf errors stay isolated.
    * @returns Disposer that unmounts the React root.
    */
-  mount: (container: HTMLElement) => () => void
+  mount: (container: HTMLElement, onFailure?: (reason: unknown) => void) => () => void
 }
 
 declare module '@deepseek-ai/cordis' {
@@ -55,6 +56,15 @@ interface BootSnapshot {
   className: string
   html: string
 }
+
+class ApplicationBoundary extends Component<{ onFailure: (reason: unknown) => void; children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false }
+  static getDerivedStateFromError(): { failed: boolean } { return { failed: true } }
+  override componentDidCatch(reason: unknown): void { this.props.onFailure(reason) }
+  override render(): ReactNode { return this.state.failed ? null : this.props.children }
+}
+
+function Application({ app }: { app: () => ReactNode }): ReactNode { return app() }
 
 /** Hydrate the kernel-owned loading DOM before replacing it with the application. */
 function BootHandoff(props: { app: () => ReactNode; boot: BootSnapshot }): ReactNode {
@@ -90,9 +100,20 @@ export function apply(ctx: Context): void {
   const slots = new SlotRegistry(ctx)
   slots.install(createSlotRenderer())
   ctx.reflect.provide('uiRenderer', {
-    mount: (container: HTMLElement): (() => void) => {
-      const root = mountApp(container, buildRenderApp({ ctx }))
-      return () => { root.unmount() }
+    mount: (container: HTMLElement, onFailure?: (reason: unknown) => void): (() => void) => {
+      let failed = false
+      const report = (reason: unknown): void => {
+        if (failed) return
+        failed = true
+        onFailure?.(reason)
+      }
+      const stop = onFailure === undefined ? undefined : slots.onEntryError((key, _entry, error) => {
+        if (key === 'root') report(error)
+      })
+      const app = buildRenderApp({ ctx })
+      const root = mountApp(container, onFailure === undefined ? app : () => createElement(ApplicationBoundary,
+        { onFailure: report, children: createElement(Application, { app }) }))
+      return () => { stop?.(); root.unmount() }
     },
   })
 }

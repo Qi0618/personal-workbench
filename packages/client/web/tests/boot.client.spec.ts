@@ -56,6 +56,50 @@ async function expectBootFailure(setup: () => void, message: string): Promise<vo
 }
 
 describe('bootstrap failure rendering', () => {
+  it.each([false, true])('recovers a mounted application failure with carrier presentation=%s', async (carrier) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const container = document.createElement('div')
+    document.body.append(container)
+    const target = installFacade()
+    win.__DSH_BOOT__ = {
+      rev: 'graph',
+      entries: [{ id: 'renderer', url: '/renderer.js', rev: '1' }],
+      batches: [{ phase: 'application', url: '/application.js', rev: '1', entries: ['renderer'] }],
+    }
+    let crash: ((reason: unknown) => void) | undefined
+    const unmount = vi.fn(() => { container.replaceChildren() })
+    const entry = new AppWebEntry(container, {
+      loadBundle: async () => {
+        target.load({ id: 'renderer', factory: () => ({
+          apply: (ctx: Context) => {
+            ctx.reflect.provide('uiRenderer', {
+              mount: (_element: HTMLElement, onFailure?: (reason: unknown) => void) => {
+                crash = onFailure
+                container.replaceChildren()
+                return unmount
+              },
+            })
+          },
+        }) })
+      },
+    })
+    const report = vi.fn()
+    try {
+      await entry.run(carrier ? report : undefined)
+      const error = new Error('application assembly failed')
+      crash?.(error)
+      crash?.(new Error('secondary failure'))
+      await vi.waitFor(() => { expect(unmount).toHaveBeenCalledOnce() })
+      if (carrier) {
+        expect(report).toHaveBeenCalledExactlyOnceWith(error)
+        expect(container.querySelector('[data-dsh-boot-spinner]')).not.toBeNull()
+      } else {
+        expect(report).not.toHaveBeenCalled()
+        expect(container.textContent).toMatchInlineSnapshot('"LumenFailed to load pluginsapplication assembly failed"')
+      }
+    } finally { await entry.dispose() }
+  })
+
   it('leaves the loading page visible when a carrier owns fatal presentation', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const container = document.createElement('div')

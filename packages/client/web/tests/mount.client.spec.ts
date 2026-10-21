@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mountClient } from '../src/mount.ts'
 
 /** Provide a fake `uiRenderer` from its own plugin fiber so it can be replaced. */
-function provideRenderer(ctx: Context, mount: (container: HTMLElement) => () => void) {
+function provideRenderer(ctx: Context, mount: (container: HTMLElement, onFailure?: (reason: unknown) => void) => () => void) {
   return ctx.plugin({ apply: (scope: Context) => { scope.reflect.provide('uiRenderer', { mount }) } })
 }
 
@@ -43,5 +43,70 @@ describe('mountClient', () => {
     await vi.waitFor(() => { expect(second.mount).toHaveBeenCalledExactlyOnceWith(container) })
     await ctx.fiber.dispose()
     expect(second.unmount).toHaveBeenCalledOnce()
+  })
+
+  it('unmounts a failed tree before reporting one fatal error', async () => {
+    const ctx = new Context()
+    const events: unknown[] = []
+    const error = new Error('root failed')
+    const unmount = vi.fn(() => { events.push('unmount') })
+    provideRenderer(ctx, (_container, onFailure) => {
+      onFailure?.(error)
+      onFailure?.(new Error('secondary failure'))
+      return unmount
+    })
+    const failure = vi.fn((reason: unknown) => { events.push(reason) })
+    await mountClient(ctx, document.createElement('div'), failure)
+    await vi.waitFor(() => { expect(failure).toHaveBeenCalledExactlyOnceWith(error) })
+    expect(events).toEqual(['unmount', error])
+    await ctx.fiber.dispose()
+    expect(unmount).toHaveBeenCalledOnce()
+  })
+
+  it('ignores queued and late fatal callbacks after its mount is disposed', async () => {
+    const ctx = new Context()
+    let report: ((reason: unknown) => void) | undefined
+    const unmount = vi.fn()
+    const renderer = provideRenderer(ctx, (_container, onFailure) => { report = onFailure; return unmount })
+    const failure = vi.fn()
+    await mountClient(ctx, document.createElement('div'), failure)
+    await renderer.dispose()
+    report?.(new Error('late failure'))
+    await Promise.resolve()
+    expect(failure).not.toHaveBeenCalled()
+    expect(unmount).toHaveBeenCalledOnce()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps fatal recovery visible when the renderer service is later replaced', async () => {
+    const ctx = new Context()
+    let report: ((reason: unknown) => void) | undefined
+    const unmount = vi.fn()
+    const first = provideRenderer(ctx, (_container, onFailure) => { report = onFailure; return unmount })
+    const failure = vi.fn()
+    await mountClient(ctx, document.createElement('div'), failure)
+    report?.(new Error('root failed'))
+    await vi.waitFor(() => { expect(failure).toHaveBeenCalledOnce() })
+    await first.dispose()
+    const mount = vi.fn(() => () => {})
+    await provideRenderer(ctx, mount).await()
+    await ctx.fiber.await()
+    expect(mount).not.toHaveBeenCalled()
+    expect(unmount).toHaveBeenCalledOnce()
+    await ctx.fiber.dispose()
+  })
+
+  it('cancels a queued fatal report when disposal reaches the mount first', async () => {
+    const ctx = new Context()
+    let report: ((reason: unknown) => void) | undefined
+    const unmount = vi.fn()
+    provideRenderer(ctx, (_container, onFailure) => { report = onFailure; return unmount })
+    const failure = vi.fn()
+    await mountClient(ctx, document.createElement('div'), failure)
+    report?.(new Error('queued failure'))
+    await ctx.fiber.dispose()
+    await Promise.resolve()
+    expect(failure).not.toHaveBeenCalled()
+    expect(unmount).toHaveBeenCalledOnce()
   })
 })

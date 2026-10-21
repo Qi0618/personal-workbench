@@ -39,6 +39,8 @@ Boot runs in two stages: the module stage adopts the parser-loaded bootstrap bat
 
 The boot page shows the Lumen name and C1 tile using plain DOM and local CSS, so bundle and plugin-activation failures remain visible: it shows one spinner node whose CSS arc grows as entries activate, and reports per-entry status. The spinner and its animation phase persist until the full UI replaces the boot page. A plugin that fails import or activation is reported by name with the reason (missing service, import failure, or state) instead of a blank page. The console contains the original import error.
 
+A root-entry crash or an uncaught application assembly failure after mounting unmounts the failed React tree before restoring the boot page. Browser callers see the failure report; Desktop forwards it once to native recovery. Leaf Slot failures remain isolated inside the working application. Disposed or replaced mounts cannot report late failures.
+
 ### The shared module table
 
 `PLATFORM_MODULES` (in `src/platform.ts`) names the shell-seeded shared modules — React, Cordis, and static UI libraries — and together with `PRELOADED_CLIENT_EXTERNALS` (the parser-preloaded runtime row) defines the implicit external baseline every dynamic bundle resolves against. `dsh.client.external` adds only exact non-baseline requests; see [shared modules and the module graph](../AGENTS.md#shared-modules-and-the-module-graph).

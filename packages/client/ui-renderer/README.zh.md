@@ -31,6 +31,8 @@ kind: "package-reference"
 
 `mount(container)` 会安装 slot 渲染器、在存在时 hydrate 现有启动 DOM、在下一次绘制前把组装后的应用渲染进容器，并返回一个卸载 React 根的 disposer。渲染器执行全程序唯一一次上下文级 `renderSlot('root')` 调用；注册的根占用方拥有产品布局与文档元数据。
 
+可选的第二个 `onFailure` 回调接收根 entry 崩溃及其他未被捕获的应用组装错误，包括启动 hydration 期间的错误。每次挂载仅报告一次首个致命错误。叶子 Slot 和 Factory 错误保留原有的局部隔离；调用方负责卸载失败的树并呈现可见的恢复界面。
+
 ### 对业务插件
 
 业务插件注册普通 Slot entry 或可复用 Component Factory；渲染器在渲染位置把运行时的会话与 Workspace observable source 绑定为 selector 钩子。插件通过推导出的 Component props 收到标准 scope props——它绝不导入渲染器，也不触碰 React 内部机制。每个由 renderer 创建的 Component 都能渲染 Factory occurrence，Factory 也能暴露由调用方选择的局部 Component，而无需在包之间共享实现值。

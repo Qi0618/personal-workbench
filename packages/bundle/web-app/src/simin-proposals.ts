@@ -1,12 +1,12 @@
 /** Project-scoped write previews on the existing tool pipeline; no agent-loop changes. */
-import { readFile, readdir, writeFile, rename } from 'node:fs/promises'
+import { readFile, readdir, writeFile, rename, unlink } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ToolExecution, PreToolDecision } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-system-prompt'
-import { SiminFileError, SiminFiles, siminIsDocument } from './simin-files.ts'
+import { SiminFileError, SiminFiles, siminIsDocument, siminSegment, type SiminProject } from './simin-files.ts'
 
 /** Persisted proposal; an interrupted tool can be explicitly saved from its retained preview. */
 export interface SiminProposal {
@@ -43,6 +43,7 @@ export class SiminProposals {
   private calls = new Map<object, SiminProposal>()
   private writes = new Map<string, Promise<void>>()
   private deciding = new Set<string>()
+  private changingProjects = new Set<string>()
   /**
    * Initialize the filesystem owner.
    * @param files - project filesystem owner.
@@ -67,6 +68,9 @@ export class SiminProposals {
    * @returns retained proposals; abandoned pending writes are marked interrupted.
    */
   async list(): Promise<SiminProposal[]> {
+    return (await this.retained()).sort((a, b) => b.createdAt - a.createdAt).slice(0, 60)
+  }
+  private async retained(): Promise<SiminProposal[]> {
     const dir = await this.files.metadata('proposals')
     const items: SiminProposal[] = []
     for (const name of await readdir(dir)) {
@@ -75,7 +79,33 @@ export class SiminProposals {
       if ((item.status === 'pending' || item.status === 'approved') && !this.waiting.has(item.id) && ![...this.calls.values()].some(call => call.id === item.id)) item.status = 'interrupted'
       items.push(item)
     }
-    return items.sort((a, b) => b.createdAt - a.createdAt).slice(0, 60)
+    return items
+  }
+  /**
+   * Rename the displayed project title while retaining its directory and conversation identity.
+   * @param project - current directory name.
+   * @param name - desired displayed title.
+   * @param version - observed directory identity.
+   * @returns canonical project name and path.
+   */
+  renameProject(project: string, name: string, version: string): Promise<Pick<SiminProject, 'name' | 'title' | 'path' | 'version'>> {
+    return this.files.renameProject(project, name, version)
+  }
+  /**
+   * Delete a confirmed project and its retained previews while refusing active document writes.
+   * @param project - directory name whose contents and metadata are permanently removed.
+   * @param version - observed directory identity.
+   */
+  async deleteProject(project: string, version: string): Promise<void> {
+    const name = siminSegment(project)
+    if (this.deciding.size > 0 || this.changingProjects.has(name)
+      || [...this.calls.values()].some(item => item.project === name)) throw new SiminFileError('projectBusy', 409)
+    this.changingProjects.add(name)
+    try {
+      const items = (await this.retained()).filter(item => item.project === name)
+      await this.files.deleteProject(name, version)
+      for (const item of items) await unlink(join(await this.files.metadata('proposals'), `${item.id}.json`))
+    } finally { this.changingProjects.delete(name) }
   }
   /**
    * Apply the user decision to a retained proposal.
@@ -90,6 +120,7 @@ export class SiminProposals {
   private async applyDecision(id: string, allow: boolean): Promise<void> {
     const item = (await this.list()).find(proposal => proposal.id === id)
     if (item === undefined || !['pending', 'interrupted', 'failed'].includes(item.status)) throw new SiminFileError('conflict', 409)
+    if (this.changingProjects.has(item.project)) throw new SiminFileError('projectBusy', 409)
     const pending = this.waiting.get(id)
     if (allow) {
       const current = await this.files.optional(item.project, item.file)
@@ -122,6 +153,7 @@ export class SiminProposals {
     const workspace = this.project(exec)
     if (workspace === undefined) return next()
     const denied = (reason: string): PreToolDecision => ({ kind: 'deny', reason })
+    if (this.changingProjects.has(workspace.project)) return denied('项目正在删除，请稍后重新打开项目。')
     if (['bash', 'exec_command', 'apply_patch', 'run_code', 'python', 'cordis_eval'].includes(exec.name)) {
       return denied('Simin 项目的文档需要先预览再确认。请使用 read / write / edit 文件工具，不通过 shell 或脚本修改项目文件。')
     }
@@ -151,6 +183,7 @@ export class SiminProposals {
       id: randomUUID(), project: workspace.project, file, sessionId: exec.agent?.session.id ?? '',
       before: current?.markdown ?? null, after, version: current?.version ?? null, createdAt: Date.now(), status: 'pending',
     }
+    if (this.changingProjects.has(workspace.project)) return denied('项目正在删除，请稍后重新打开项目。')
     this.calls.set(exec.token, item)
     let settle: (allow: boolean) => void = () => {}
     const answer = new Promise<boolean>((resolveAnswer) => { settle = resolveAnswer })
@@ -179,8 +212,7 @@ export class SiminProposals {
       return await next()
     } catch (error: unknown) {
       item.status = 'failed'
-      this.calls.delete(exec.token)
-      await this.persist(item)
+      try { await this.persist(item) } finally { this.calls.delete(exec.token) }
       throw error
     } finally { exec.signal.removeEventListener('abort', abort); this.waiting.delete(item.id) }
   }
@@ -192,9 +224,8 @@ export class SiminProposals {
   async settled(exec: ToolExecution, failed: boolean): Promise<void> {
     const item = this.calls.get(exec.token)
     if (item === undefined) return
-    this.calls.delete(exec.token)
     item.status = failed ? 'failed' : 'saved'
-    await this.persist(item)
+    try { await this.persist(item) } finally { this.calls.delete(exec.token) }
   }
   /** Release pending waits during plugin disposal. */
   dispose(): void { this.closing = true; for (const pending of this.waiting.values()) pending.decide(false) }

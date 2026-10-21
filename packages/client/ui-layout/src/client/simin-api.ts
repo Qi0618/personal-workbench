@@ -2,7 +2,7 @@
 /** One text file's metadata and preview. */
 export interface SiminFile { name: string; modifiedAt: number; bytes: number; preview: string }
 /** A project directory and its real documents. */
-export interface SiminProject { name: string; path: string; documents: string[]; files: SiminFile[] }
+export interface SiminProject { name: string; title: string; path: string; version: string; documents: string[]; files: SiminFile[] }
 /** A recoverable file in the workbench trash. */
 export interface SiminTrash { id: string; project: string; file: string; deletedAt: number; version: string; markdown: string }
 /** A retained save proposal from the existing Agent. */
@@ -56,7 +56,8 @@ export async function siminSnapshot(signal?: AbortSignal): Promise<SiminSnapshot
       const file = record(raw)
       return { name: text(file.name), modifiedAt: number(file.modifiedAt), bytes: number(file.bytes), preview: text(file.preview) }
     })
-    return { name: text(item.name), path: text(item.path), documents: array(item.documents).map(text), files }
+    return { name: text(item.name), title: text(item.title), path: text(item.path), version: text(item.version),
+      documents: array(item.documents).map(text), files }
   })
   const trash = array(data.trash).map((value) => {
     const item = record(value)

@@ -97,7 +97,13 @@ export async function handleAipmRequest(
       sendJson(res, 200, { ok: true })
     } else if (url.pathname === '/aipm/mutate') {
       const op = string(data.op)
-      if (op === 'restore' || op === 'purge') await siminFiles.restore(string(data.id), data.version, op === 'purge')
+      if (op === 'renameProject') {
+        const project = await siminProposals.renameProject(string(data.project), string(data.name), string(data.version))
+        sendJson(res, 200, { ok: true, project })
+        return true
+      }
+      if (op === 'deleteProject') await siminProposals.deleteProject(string(data.project), string(data.version))
+      else if (op === 'restore' || op === 'purge') await siminFiles.restore(string(data.id), data.version, op === 'purge')
       else if (op === 'rename') await siminFiles.rename(string(data.project), string(data.file), string(data.name), data.version)
       else if (op === 'trash') await siminFiles.trash(string(data.project), string(data.file), data.version)
       else if (op === 'save') await siminFiles.save(string(data.project), string(data.file), string(data.markdown), data.version)
