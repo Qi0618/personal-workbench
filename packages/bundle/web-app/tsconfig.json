@@ -49,6 +49,12 @@
     },
     {
       "path": "../../core/agent"
+    },
+    {
+      "path": "../../workspace/workspace"
+    },
+    {
+      "path": "../../api/workspace-controller/tsconfig.host.json"
     }
   ]
 }

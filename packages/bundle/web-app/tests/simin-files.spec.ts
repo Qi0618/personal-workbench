@@ -2,7 +2,7 @@
 import { mkdtemp, readdir, writeFile, symlink, rm, mkdir, readFile, rename } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi, onTestFinished } from 'vitest'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import { SiminFiles, siminVersion } from '../src/simin-files.ts'
 import { SiminProposals } from '../src/simin-proposals.ts'
@@ -13,6 +13,42 @@ beforeEach(async () => { root = await mkdtemp(join(tmpdir(), 'simin-files-')); f
 afterEach(async () => { await rm(root, { recursive: true, force: true }) })
 
 describe('Simin project files', () => {
+  it('imports independent copies, preserves nested and binary files, and never deletes the source', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'simin-source-'))
+    onTestFinished(() => rm(source, { recursive: true, force: true }))
+    await mkdir(join(source, 'assets'))
+    await writeFile(join(source, 'notes.md'), '# Source notes')
+    await writeFile(join(source, 'assets', 'image.bin'), Buffer.from([0, 1, 2, 255]))
+    const created = await files.create('Imported', source)
+    expect(created.documents).toEqual(['notes.md'])
+    expect(created.files[0]?.preview).toBe('Source notes')
+    expect(await readFile(join(created.path, 'assets', 'image.bin'))).toEqual(Buffer.from([0, 1, 2, 255]))
+    await writeFile(join(created.path, 'notes.md'), 'Changed copy')
+    expect(await readFile(join(source, 'notes.md'), 'utf8')).toBe('# Source notes')
+    await files.deleteProject(created.name, created.version)
+    expect(await readFile(join(source, 'notes.md'), 'utf8')).toBe('# Source notes')
+  })
+  it('refuses imports that would recursively copy the project root into itself', async () => {
+    await expect(files.create('Recursive', root)).rejects.toMatchObject({ code: 'invalidSourceFolder' })
+    await expect(files.create('Relative', 'relative-folder')).rejects.toMatchObject({ code: 'invalidSourceFolder' })
+    expect(await files.projects()).toEqual([])
+  })
+  it('rolls back a partial import when the source contains a symbolic link', async () => {
+    const source = await mkdtemp(join(tmpdir(), 'simin-link-source-'))
+    onTestFinished(() => rm(source, { recursive: true, force: true }))
+    await mkdir(join(source, 'target'))
+    await symlink(join(source, 'target'), join(source, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    await expect(files.create('Linked', source)).rejects.toMatchObject({ code: 'sourceFolderLink' })
+    expect(await files.projects()).toEqual([])
+    expect((await readdir(root)).filter(name => name.startsWith('.creating-'))).toEqual([])
+    expect(await readdir(source)).toContain('linked')
+  })
+  it('does not create a project for an already cancelled request', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    await expect(files.create('Cancelled', undefined, controller.signal)).rejects.toThrow()
+    expect(await files.projects()).toEqual([])
+  })
   it('creates an actually empty project and refuses a duplicate', async () => {
     const project = await files.create('需求梳理')
     expect(await readdir(project.path)).toEqual([])

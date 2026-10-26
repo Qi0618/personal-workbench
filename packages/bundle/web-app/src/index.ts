@@ -26,6 +26,7 @@ import { launchedThroughSsh, launchEnvironmentOf } from '@deepseek-ai/dsh-launch
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-api-workspace-controller'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { AIPM_PRODUCT_ROOT, handleAipmRequest, SIMIN_ROUTES } from './aipm-products.ts'
 import { installSiminProposals, SiminProposals } from './simin-proposals.ts'
@@ -260,12 +261,23 @@ export function apply(ctx: Context, config: Config): void {
   const files = new SiminFiles(config.projectRoot)
   const proposals = new SiminProposals(files)
   installSiminProposals(ctx, proposals)
+  let requestTail = Promise.resolve()
+  const requests = new AbortController()
+  ctx.effect(() => async () => { requests.abort(); await requestTail }, 'workbench: settle pending requests')
   for (const path of SIMIN_ROUTES) {
     ctx.effect(() => ctx.webServer.register({
       kind: 'exact',
       path,
       handler: async (req, res) => {
-        const handled = await handleAipmRequest(req, res, { files, proposals })
+        // Keep project scans, mutations and their Workspace projection in request order.
+        const workspaces = ctx.get('workspaceRegistry')
+        const picker = ctx.get('directoryPickerController')
+        const pending = requestTail.then(() => handleAipmRequest(req, res, {
+          files, proposals, workspaces, signal: requests.signal,
+          pickSource: picker === undefined ? undefined : signal => picker.pick(signal),
+        }))
+        requestTail = pending.then(() => {}, () => {})
+        const handled = await pending
         if (!handled) {
           res.writeHead(404)
           res.end()

@@ -18,6 +18,7 @@ import { siminRequest, siminSnapshot, siminDocument } from './simin-api.ts'
 import type { SiminSnapshot, SiminProject, SiminDocument, SiminProposal, SiminTrash, SiminConversationHit } from './simin-api.ts'
 import { siminZh } from './simin-locales.ts'
 import type { SiminKey } from './simin-locales.ts'
+import { CreateProjectDialog, type CreateProjectInput } from './CreateProjectDialog.tsx'
 import { SiminIcon } from './SiminIcons.tsx'
 import css from './SiminShell.module.css'
 
@@ -243,13 +244,14 @@ export function SiminShell({ chat, nativeSettings, t }: { chat: ReactNode; nativ
     catch (error: unknown) { setToast({ text: errorCopy(error), seq: Date.now() }) }
   }
   const closeDialog = (): void => { if (!busy) setDialog(null) }
-  const commit = async (): Promise<void> => {
-    if (dialog === null || busy) return
+  const commit = async (creation?: CreateProjectInput): Promise<void> => {
+    if (dialog === null || busy || (dialog.kind === 'create' && creation === undefined)) return
     setBusy(true); setFormError('')
     try {
       if (dialog.kind === 'create') {
-        const data = await siminRequest('/aipm/projects', { name: nameDraft })
+        const data = await siminRequest('/aipm/projects', { ...creation })
         const created: SiminProject = { ...projectDetails(data), documents: [], files: [] }
+        poll.current?.abort(); poll.current = null
         setSnapshot(previousSnapshot => ({ ...previousSnapshot, projects: [...previousSnapshot.projects, created] }))
         if (ideaDraft.trim()) draftToProject(created, ideaDraft.trim()); else openProject(created)
       } else if (dialog.kind === 'renameProject') {
@@ -404,8 +406,8 @@ export function SiminShell({ chat, nativeSettings, t }: { chat: ReactNode; nativ
     </main>
     <div className={css.nativeHost}>{nativeSettings}</div>
     {toast !== null && <Toast key={toast.seq} text={toast.text} onDone={() => { setToast(null) }} />}
-    <Modal open={dialog !== null} onClose={closeDialog} title={t(dialogKey)} closeLabel={t('close')} className={css.dialog ?? ''} footer={dialog?.kind === 'preview' && dialog.proposal === undefined ? button('close', closeDialog) : <>{dialog?.proposal === undefined ? <button type="button" className={css.button} disabled={busy} data-modal-autofocus={dialog?.kind === 'deleteProject' || undefined} onClick={closeDialog}>{t('cancel')}</button> : <button className={css.button} disabled={busy} onClick={() => { void reject() }}>{t('cancel')}</button>}<button type="button" className={dialog?.kind === 'deleteProject' ? `${css.button} ${css.dangerButton}` : css.primary} disabled={busy} onClick={() => { void commit() }}>{t(busy ? 'busy' : dialog?.kind === 'create' ? 'create' : dialog?.kind === 'renameProject' || dialog?.kind === 'deleteProject' ? dialog.kind : dialog?.kind === 'rename' ? 'rename' : dialog?.kind === 'trash' ? 'remove' : dialog?.kind === 'purge' ? 'permanent' : dialog?.kind === 'template' ? 'useTemplate' : dialog?.kind === 'newDoc' && !previewing ? 'preview' : 'confirm')}</button></>}>
-      {dialog?.kind === 'create' && <><label className={css.field}>{t('projectName')}<input data-modal-autofocus value={nameDraft} placeholder={t('namePlaceholder')} onChange={(event) => { setNameDraft(event.target.value) }} onKeyDown={(event) => { if (event.key === 'Enter') void commit() }} /></label><label className={css.field}>{t('idea')}<textarea value={ideaDraft} placeholder={t('ideaPlaceholder')} onChange={(event) => { setIdeaDraft(event.target.value) }} /></label><p className={css.hint}>{t('createHint')}</p></>}
+    {dialog?.kind === 'create' && <CreateProjectDialog busy={busy} error={formError} onClose={closeDialog} onCreate={(input) => { void commit(input) }} t={t} />}
+    <Modal open={dialog !== null && dialog.kind !== 'create'} onClose={closeDialog} title={t(dialogKey)} closeLabel={t('close')} className={css.dialog ?? ''} footer={dialog?.kind === 'preview' && dialog.proposal === undefined ? button('close', closeDialog) : <>{dialog?.proposal === undefined ? <button type="button" className={css.button} disabled={busy} data-modal-autofocus={dialog?.kind === 'deleteProject' || undefined} onClick={closeDialog}>{t('cancel')}</button> : <button className={css.button} disabled={busy} onClick={() => { void reject() }}>{t('cancel')}</button>}<button type="button" className={dialog?.kind === 'deleteProject' ? `${css.button} ${css.dangerButton}` : css.primary} disabled={busy} onClick={() => { void commit() }}>{t(busy ? 'busy' : dialog?.kind === 'create' ? 'create' : dialog?.kind === 'renameProject' || dialog?.kind === 'deleteProject' ? dialog.kind : dialog?.kind === 'rename' ? 'rename' : dialog?.kind === 'trash' ? 'remove' : dialog?.kind === 'purge' ? 'permanent' : dialog?.kind === 'template' ? 'useTemplate' : dialog?.kind === 'newDoc' && !previewing ? 'preview' : 'confirm')}</button></>}>
       {dialog?.kind === 'rename' && <><p>{t('renameHint')}</p><label className={css.field}>{t('filename')}<input data-modal-autofocus value={nameDraft} onChange={(event) => { setNameDraft(event.target.value) }} /></label></>}
       {dialog?.kind === 'renameProject' && <><p>{t('projectRenameHint')}</p><label className={css.field}>{t('projectName')}<input data-modal-autofocus value={nameDraft} disabled={busy} onChange={(event) => { setNameDraft(event.target.value) }} onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); void commit() } }} /></label></>}
       {dialog?.kind === 'deleteProject' && <><h3>{dialog.projectTitle}</h3><p>{t('projectDeleteHint')}</p></>}

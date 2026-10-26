@@ -1,8 +1,8 @@
 /** Local project documents, versioned mutations, and recoverable trash for Simin. */
 import { constants, type Stats } from 'node:fs'
-import { open, mkdir, readdir, lstat, writeFile, rename, unlink, link, rmdir } from 'node:fs/promises'
+import { open, mkdir, readdir, lstat, writeFile, rename, unlink, link, rmdir, realpath, cp } from 'node:fs/promises'
 import { createHash, randomUUID } from 'node:crypto'
-import { join, resolve } from 'node:path'
+import { join, resolve, relative, isAbsolute, sep } from 'node:path'
 
 /** A refused file operation; codes are consumed by the localized desktop client. */
 export class SiminFileError extends Error {
@@ -151,22 +151,58 @@ export class SiminFiles {
     return projects.sort((a, b) => a.title.localeCompare(b.title, 'zh'))
   }
   /**
-   * Create an empty project directory without replacing an existing one.
+   * Create a project, optionally importing a source directory's contents as independent copies.
    * @param name - desired displayed title.
-   * @returns a new, empty project with a fresh directory key; duplicate titles refuse.
+   * @param sourcePath - optional absolute source directory; links and special files are refused.
+   * @param signal - request lifetime; cancellation discards unpublished imports.
+   * @returns a new project with a fresh directory key and real document metadata; duplicate titles refuse.
    */
-  create(name: unknown): Promise<SiminProject> {
+  create(name: unknown, sourcePath?: string, signal?: AbortSignal): Promise<SiminProject> {
     return this.mutate(async () => {
+      signal?.throwIfAborted()
       const title = siminSegment(name)
       await mkdir(this.root, { recursive: true })
       if ((await this.projects()).some(item => item.title.toLowerCase() === title.toLowerCase())) throw new SiminFileError('duplicate', 409)
+      let source: string | undefined
+      if (sourcePath !== undefined) {
+        if (!isAbsolute(sourcePath)) throw new SiminFileError('invalidSourceFolder')
+        source = await realpath(sourcePath)
+        if (!(await lstat(source)).isDirectory()) throw new SiminFileError('invalidSourceFolder')
+        const rootWithinSource = relative(source, await realpath(this.root))
+        if (rootWithinSource === '' || (!isAbsolute(rootWithinSource)
+          && rootWithinSource !== '..' && !rootWithinSource.startsWith(`..${sep}`))) throw new SiminFileError('invalidSourceFolder')
+      }
       const project = `project-${randomUUID()}`
       const path = join(this.root, project)
-      await mkdir(path)
-      const version = projectVersion(await lstat(path))
-      try { await this.writeProjectTitle(project, title, version) }
-      catch (error: unknown) { await rmdir(path); throw error }
-      return { name: project, title, path, version, documents: [], files: [] }
+      const temporary = join(this.root, `.creating-${randomUUID()}`)
+      await mkdir(temporary)
+      let published = false
+      try {
+        if (source !== undefined) for (const name of await readdir(source)) await cp(join(source, name), join(temporary, name), {
+          recursive: true, force: false, errorOnExist: true,
+          filter: async (entry) => {
+            signal?.throwIfAborted()
+            const info = await lstat(entry)
+            if (info.isSymbolicLink() || (!info.isFile() && !info.isDirectory())) throw new SiminFileError('sourceFolderLink')
+            return true
+          },
+        })
+        signal?.throwIfAborted()
+        await rename(temporary, path)
+        published = true
+        const version = projectVersion(await lstat(path))
+        await this.writeProjectTitle(project, title, version)
+        const created = (await this.projects()).find(item => item.name === project)
+        if (created === undefined) throw new SiminFileError('missing', 404)
+        return created
+      } catch (error: unknown) {
+        await removeTree(published ? path : temporary)
+        if (published) {
+          try { await unlink(join(await this.internal('projects'), `${siminVersion(project)}.json`)) }
+          catch (cleanupError: unknown) { if (!missing(cleanupError)) throw cleanupError }
+        }
+        throw error
+      }
     })
   }
   private async projectTrash(project: string): Promise<{ dir: string; items: Omit<SiminTrash, 'markdown'>[] }> {

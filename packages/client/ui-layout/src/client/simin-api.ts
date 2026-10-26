@@ -44,6 +44,22 @@ export async function siminRequest(path: string, payload?: Record<string, unknow
   return data
 }
 /**
+ * Choose source materials through the window-owned Desktop picker or the local Host.
+ * @param signal - form lifetime; late Desktop results are discarded after cancellation.
+ * @returns the selected directory, or null when the chooser is cancelled.
+ */
+export async function siminPickSource(signal: AbortSignal): Promise<string | null> {
+  signal.throwIfAborted()
+  const desktop = (globalThis as typeof globalThis & {
+    __DSH_DIRECTORY_PICKER__?: { pick: () => Promise<string | null> }
+  }).__DSH_DIRECTORY_PICKER__
+  const path: unknown = desktop === undefined
+    ? record(await siminRequest('/aipm/source-folder', {}, signal)).path
+    : await desktop.pick()
+  signal.throwIfAborted()
+  return path === null ? null : text(path)
+}
+/**
  * Read and validate the current workbench data.
  * @param signal - refresh lifetime.
  * @returns parsed real project, trash and proposal data.

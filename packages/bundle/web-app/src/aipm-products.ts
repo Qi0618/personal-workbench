@@ -1,13 +1,15 @@
 /** Loopback-only Simin project, document, trash and proposal HTTP endpoints. */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { fileURLToPath } from 'node:url'
+import type { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace'
+import { synchronizeSiminWorkspaces } from './simin-workspaces.ts'
 import { SiminFileError, SiminFiles } from './simin-files.ts'
 import { SiminProposals } from './simin-proposals.ts'
 
 /** Default projects directory beside the source checkout or installed runtime. */
 export const AIPM_PRODUCT_ROOT = fileURLToPath(new URL('../../../../projects', import.meta.url))
 /** Exact endpoint list registered on the Host. */
-export const SIMIN_ROUTES = ['/aipm/product', '/aipm/projects', '/aipm/file', '/aipm/stage', '/aipm/state', '/aipm/mutate', '/aipm/decide', '/aipm/search']
+export const SIMIN_ROUTES = ['/aipm/product', '/aipm/projects', '/aipm/file', '/aipm/stage', '/aipm/state', '/aipm/mutate', '/aipm/decide', '/aipm/search', '/aipm/source-folder']
 
 /**
  * Validate a project or document path component.
@@ -51,21 +53,37 @@ function localRequest(req: IncomingMessage): boolean {
  * Handle local workbench routes and return structured errors.
  * @param req - local HTTP request.
  * @param res - response.
- * @param workbench - filesystem and proposal owners for this runtime.
+ * @param workbench - filesystem and proposal owners, plus the optional conversation Workspace registry.
  * @returns whether a Simin endpoint answered.
  */
 export async function handleAipmRequest(
-  req: IncomingMessage, res: ServerResponse, workbench: { files: SiminFiles; proposals: SiminProposals },
+  req: IncomingMessage, res: ServerResponse,
+  workbench: {
+    files: SiminFiles
+    proposals: SiminProposals
+    workspaces?: WorkspaceRegistry | undefined
+    pickSource?: ((signal: AbortSignal) => Promise<string | null>) | undefined
+    signal?: AbortSignal
+  },
 ): Promise<boolean> {
-  const { files: siminFiles, proposals: siminProposals } = workbench
+  const { files: siminFiles, proposals: siminProposals, workspaces } = workbench
+  const projects = async () => {
+    const rows = await siminFiles.projects()
+    if (workspaces !== undefined) await synchronizeSiminWorkspaces(siminFiles.root, rows, workspaces)
+    return rows
+  }
   const url = new URL(req.url ?? '/', 'http://127.0.0.1')
   if (!SIMIN_ROUTES.includes(url.pathname)) return false
   if (!localRequest(req)) { sendJson(res, 403, { error: 'localOnly' }); return true }
+  const controller = new AbortController()
+  const signal = workbench.signal === undefined ? controller.signal : AbortSignal.any([controller.signal, workbench.signal])
+  const cancel = (): void => { controller.abort() }
+  res.once('close', cancel)
   try {
     if (req.method === 'GET') {
-      if (url.pathname === '/aipm/projects') sendJson(res, 200, { projects: await siminFiles.projects() })
+      if (url.pathname === '/aipm/projects') sendJson(res, 200, { projects: await projects() })
       else if (url.pathname === '/aipm/state') sendJson(res, 200, {
-        root: siminFiles.root, projects: await siminFiles.projects(),
+        root: siminFiles.root, projects: await projects(),
         trash: await siminFiles.trashList(), proposals: await siminProposals.list(),
       })
       else if (url.pathname === '/aipm/search') {
@@ -90,7 +108,14 @@ export async function handleAipmRequest(
     }
     if (req.method !== 'POST') { sendJson(res, 405, { error: 'method' }); return true }
     const data = await body(req)
-    if (url.pathname === '/aipm/projects') sendJson(res, 201, await siminFiles.create(data.name))
+    if (url.pathname === '/aipm/source-folder') {
+      if (workbench.pickSource === undefined) throw new SiminFileError('sourceFolderUnavailable')
+      sendJson(res, 200, { path: await workbench.pickSource(signal) })
+    } else if (url.pathname === '/aipm/projects') {
+      const project = await siminFiles.create(data.name, data.sourcePath === undefined ? undefined : string(data.sourcePath), signal)
+      await projects()
+      sendJson(res, 201, project)
+    }
     else if (url.pathname === '/aipm/decide') {
       if (typeof data.allow !== 'boolean') throw new SiminFileError('invalidData')
       await siminProposals.decide(string(data.id), data.allow)
@@ -99,10 +124,14 @@ export async function handleAipmRequest(
       const op = string(data.op)
       if (op === 'renameProject') {
         const project = await siminProposals.renameProject(string(data.project), string(data.name), string(data.version))
+        await projects()
         sendJson(res, 200, { ok: true, project })
         return true
       }
-      if (op === 'deleteProject') await siminProposals.deleteProject(string(data.project), string(data.version))
+      if (op === 'deleteProject') {
+        await siminProposals.deleteProject(string(data.project), string(data.version))
+        await projects()
+      }
       else if (op === 'restore' || op === 'purge') await siminFiles.restore(string(data.id), data.version, op === 'purge')
       else if (op === 'rename') await siminFiles.rename(string(data.project), string(data.file), string(data.name), data.version)
       else if (op === 'trash') await siminFiles.trash(string(data.project), string(data.file), data.version)
@@ -117,6 +146,6 @@ export async function handleAipmRequest(
   } catch (error: unknown) {
     const code = error instanceof SiminFileError ? error.code : error instanceof Error && 'code' in error && error.code === 'ENOENT' ? 'missing' : 'io'
     sendJson(res, error instanceof SiminFileError ? error.status : code === 'missing' ? 404 : 400, { error: code })
-  }
+  } finally { res.off('close', cancel) }
   return true
 }

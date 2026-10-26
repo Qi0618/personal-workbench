@@ -9,7 +9,7 @@
 
 import { EventEmitter } from 'node:events'
 import { spawn, type ChildProcess } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, realpathSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -21,6 +21,13 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import * as AppBoot from '@deepseek-ai/dsh-app-boot'
 import { createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
+import Storage from '@deepseek-ai/dsh-storage'
+import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
+import WorkspaceRegistry from '@deepseek-ai/dsh-workspace'
+import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import { MemoryStorageBackend } from '../../../storage/storage-domain/tests/helpers/memory-backend.ts'
+import { SiminFiles } from '../src/simin-files.ts'
+import { WorkspaceFeed } from '../../../api/workspace-controller/src/feed.ts'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { WebRoute, WebServer } from '@deepseek-ai/dsh-host-webserver'
 import { apply, Config, internals } from '../src/index.ts'
@@ -111,6 +118,18 @@ async function workbenchRequest(routes: Map<string, WebRoute['handler']>, path: 
   } finally { socket.destroy() }
 }
 
+/** Real registry and durable-domain behavior over isolated in-memory storage. */
+async function provideWorkspaces(ctx: Context): Promise<void> {
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(Storage)
+  ctx.storage.backend.register('memory', new MemoryStorageBackend())
+  const domain = new DomainFacility(ctx, { backend: 'memory', routes: {} })
+  ctx.storage.mount('domain', domain)
+  ctx.provide('storageDomain', domain)
+  ctx.provide('sessionPersistence', { list: async () => [] } as never)
+  await ctx.plugin(WorkspaceRegistry)
+}
+
 /** Deterministic Host Connection face for URL publication and frontend injection. */
 function provideConnection(ctx: Context): void {
   ctx.provide('connection', {
@@ -155,7 +174,17 @@ describe('web-app runtime glue', () => {
     } }])
     await ctx.loader.await()
     await ctx.loader.resolve('workbench').fiber?.await()
-    const created = await workbenchRequest(routes, '/aipm/projects', { name: '原项目' })
+    await provideWorkspaces(ctx)
+    const feed = new WorkspaceFeed(ctx)
+    const source = mkdtempSync(join(tmpdir(), 'simin-source-route-'))
+    onTestFinished(() => { rmSync(source, { recursive: true, force: true }) })
+    writeFileSync(join(source, 'source.md'), 'Source material')
+    const pick = vi.fn(async () => source as string | null)
+    ctx.provide('directoryPickerController', { pick } as never)
+    expect(await workbenchRequest(routes, '/aipm/source-folder', {})).toEqual({ status: 200, data: { path: source } })
+    pick.mockResolvedValueOnce(null)
+    expect(await workbenchRequest(routes, '/aipm/source-folder', {})).toEqual({ status: 200, data: { path: null } })
+    const created = await workbenchRequest(routes, '/aipm/projects', { name: '原项目', sourcePath: source })
     expect(created.status).toBe(201)
     expect(created.data).toMatchObject({ title: '原项目' })
     if (typeof created.data !== 'object' || created.data === null || !('version' in created.data)
@@ -166,10 +195,18 @@ describe('web-app runtime glue', () => {
     const { name, path } = created.data
     expect(name).toMatch(/^project-/u)
     expect(path).toBe(join(root, name))
+    expect(readFileSync(join(path, 'source.md'), 'utf8')).toBe('Source material')
+    const workspace = await ctx.workspaceRegistry.resolveByPath(path)
+    expect(workspace?.title).toBe('原项目')
+    if (workspace === undefined) throw new Error('project workspace missing')
+    const session = ctx.sessions.create(SessionId('project-chat'), { meta: { cwd: realpathSync(path) } })
+    await workspace.attachSession(session.id)
+    expect(feed.baseline().items.map(row => row.title)).toEqual(['原项目'])
     writeFileSync(join(path, 'a.md'), 'preserved')
     const renamed = await workbenchRequest(routes, '/aipm/mutate', { op: 'renameProject', project: name, name: '新名称', version })
     expect(renamed).toMatchObject({ status: 200, data: { ok: true, project: { name, title: '新名称', path, version } } })
     expect(readFileSync(join(path, 'a.md'), 'utf8')).toBe('preserved')
+    expect(feed.baseline().items).toMatchObject([{ workspaceId: workspace.id, title: '新名称', sessionIds: [session.id] }])
     const stale = await workbenchRequest(routes, '/aipm/mutate', { op: 'deleteProject', project: name, version: 'stale' })
     expect(stale).toEqual({ status: 409, data: { error: 'projectConflict' } })
     expect(existsSync(path)).toBe(true)
@@ -178,8 +215,85 @@ describe('web-app runtime glue', () => {
     const deleted = await workbenchRequest(routes, '/aipm/mutate', { op: 'deleteProject', project: name, version })
     expect(deleted).toEqual({ status: 200, data: { ok: true } })
     expect(existsSync(path)).toBe(false)
+    expect(feed.baseline().items).toEqual([])
+    expect(ctx.sessions.get(session.id)).toBe(session)
+    expect(readFileSync(join(source, 'source.md'), 'utf8')).toBe('Source material')
     expect((await workbenchRequest(routes, '/aipm/projects')).data).toEqual({ projects: [] })
   })
+  it('repairs legacy workspace titles and removes only missing project entries on a state refresh', async () => {
+    stageDist()
+    const parent = realpathSync(mkdtempSync(join(tmpdir(), 'simin-workspace-sync-')))
+    onTestFinished(() => { rmSync(parent, { recursive: true, force: true }) })
+    const root = join(parent, 'projects')
+    mkdirSync(root)
+    const alias = join(parent, 'project-link')
+    symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir')
+    const files = new SiminFiles(alias)
+    const project = await files.create('AIGC')
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await provideWorkspaces(ctx)
+    const registry = ctx.workspaceRegistry
+    const existing = await registry.create(project.path)
+    const session = ctx.sessions.create(SessionId('retained-chat'), { meta: { cwd: realpathSync(project.path) } })
+    await existing.attachSession(session.id)
+    const removedPath = join(root, '旧项目')
+    mkdirSync(removedPath)
+    const removed = await registry.create(removedPath)
+    rmSync(removedPath, { recursive: true })
+    const outside = join(parent, 'default-workspace')
+    mkdirSync(outside)
+    const unrelated = await registry.create(outside, 'Default Workspace')
+    const nested = join(project.path, 'nested')
+    mkdirSync(nested)
+    const nestedWorkspace = await registry.create(nested)
+    rmSync(nested, { recursive: true })
+    const hidden = join(root, '.hidden')
+    mkdirSync(hidden)
+    const hiddenWorkspace = await registry.create(hidden)
+    rmSync(hidden, { recursive: true })
+    const feed = new WorkspaceFeed(ctx)
+    const { server, routes } = fakeHttpServer()
+    ctx.provide('webServer', server)
+    provideConnection(ctx)
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.workbench = { apply, Config }
+    await ctx.loader.root.update([{ id: 'workbench', name: 'cordis:workbench', config: {
+      projectRoot: alias, openBrowser: false, printUrl: false, surfaceContext: false,
+    } }])
+    await ctx.loader.await()
+    await ctx.loader.resolve('workbench').fiber?.await()
+    const response = await workbenchRequest(routes, '/aipm/state')
+    expect(response.status).toBe(200)
+    expect(existing.title).toBe('AIGC')
+    expect(existing.sessionIds).toEqual([session.id])
+    expect(registry.get(removed.id)).toBeUndefined()
+    for (const retained of [unrelated, nestedWorkspace, hiddenWorkspace]) expect(registry.get(retained.id)).toBe(retained)
+    expect(ctx.sessions.get(session.id)).toBe(session)
+    expect(feed.baseline().items.find(item => item.workspaceId === existing.id)?.title).toBe('AIGC')
+    expect(feed.baseline().items.map(item => item.title)).toMatchInlineSnapshot(`
+      [
+        ".hidden",
+        "nested",
+        "Default Workspace",
+        "AIGC",
+      ]
+    `)
+    const update = vi.spyOn(existing, 'setTitle')
+    expect((await workbenchRequest(routes, '/aipm/state')).status).toBe(200)
+    expect(update).not.toHaveBeenCalled()
+    expect(registry.list()).toHaveLength(4)
+    await existing.setTitle(project.name)
+    update.mockRejectedValueOnce(new Error('workspace storage unavailable'))
+    expect(await workbenchRequest(routes, '/aipm/state')).toEqual({ status: 400, data: { error: 'io' } })
+    expect(existing.title).toBe(project.name)
+    expect((await workbenchRequest(routes, '/aipm/state')).status).toBe(200)
+    expect(existing.title).toBe('AIGC')
+    expect(existing.sessionIds).toEqual([session.id])
+    await ctx.loader.root.update([])
+    expect(routes.size).toBe(0)
+  })
+
   it('defaults projects to this checkout and resolves configured roots before activation', () => {
     expect(new Config({}).projectRoot).toBe(fileURLToPath(new URL('../../../../projects', import.meta.url)))
     expect(new Config({ projectRoot: 'custom-projects' }).projectRoot).toBe(join(process.cwd(), 'custom-projects'))

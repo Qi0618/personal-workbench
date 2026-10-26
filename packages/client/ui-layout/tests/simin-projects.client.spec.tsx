@@ -21,11 +21,19 @@ beforeEach(() => {
   mutationError = null
   vi.stubGlobal('fetch', vi.fn(async (input: string, options?: RequestInit) => {
     if (input === '/aipm/state') return Response.json(state)
+    if (input === '/aipm/source-folder') return Response.json({ path: '/source/materials' })
     if (input.startsWith('/aipm/file?')) return Response.json({ markdown: '内容', version: 'v1' })
-    if (input !== '/aipm/mutate' || typeof options?.body !== 'string') throw new Error(`Unexpected request: ${input}`)
-    const data: Record<string, unknown> = JSON.parse(options.body)
+    if (!['/aipm/mutate', '/aipm/projects'].includes(input) || typeof options?.body !== 'string') throw new Error(`Unexpected request: ${input}`)
+    const value: unknown = JSON.parse(options.body)
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid request body')
+    const data = value as Record<string, unknown>
     mutations.push(data)
     if (mutationError !== null) return Response.json({ error: mutationError }, { status: 409 })
+    if (input === '/aipm/projects' && typeof data.name === 'string') {
+      const created = { ...project('project-created'), title: data.name }
+      state = { ...state, projects: [...state.projects, created] }
+      return Response.json(created, { status: 201 })
+    }
     if (data.op === 'renameProject' && typeof data.name === 'string') {
       const title = data.name.trim()
       state = { ...state, projects: state.projects.map(item => item.name === data.project ? { ...item, title } : item) }
@@ -57,6 +65,19 @@ function choose(label: '重命名项目' | '删除项目'): HTMLElement {
 }
 
 describe('Simin project actions', () => {
+  it('creates from the new dialog and forwards the selected source folder to the Host', async () => {
+    await mount()
+    fireEvent.click(screen.getAllByRole('button', { name: '新建项目' })[0]!)
+    const dialog = screen.getByRole('dialog', { name: '创建项目' })
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '项目名称' }), { target: { value: '资料项目' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: '添加' }))
+    await within(dialog).findByText('/source/materials')
+    fireEvent.click(within(dialog).getByRole('button', { name: '创建项目' }))
+    await waitFor(() => { expect(screen.queryByRole('dialog')).toBeNull() })
+    expect(mutations).toEqual([{ name: '资料项目', sourcePath: '/source/materials' }])
+    expect(loadSiminView()).toMatchObject({ project: 'project-created', page: 'project' })
+    expect(screen.getAllByText('资料项目').length).toBeGreaterThan(0)
+  })
   it('opens the project menu without navigating and returns keyboard focus on Escape', async () => {
     const open = vi.fn()
     window.addEventListener(SIMIN_OPEN_PROJECT_EVENT, open)
@@ -126,7 +147,7 @@ describe('Simin project actions', () => {
     expect(within(dialog).getByRole('alert').textContent).toBe(siminZh.duplicate)
     expect(screen.getByRole('button', { name: '项目操作：妙想' })).toBeTruthy()
     expect(state.projects.map(item => item.name)).toEqual(['妙想', '奇思'])
-    expect((within(dialog).getByRole('textbox') as HTMLInputElement).value).toBe('奇思')
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox').value).toBe('奇思')
   })
 
   it('shows the named project and permanent deletion warning, and cancels without a request', async () => {
