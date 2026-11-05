@@ -29,6 +29,27 @@
 - 工作分支是 `lumen/main`，从 `upstream/master` 拉出。
 - 旧版基于 `dsh-v0.2.1-alpha.1`，查看旧改动用 `git diff dsh-v0.2.1-alpha.1 fork/main -- <路径>`。
 
+## 改动过的上游文件
+
+merge 上游时只有这些文件可能冲突。每处都只是追加几行，冲突时保留双方内容即可。
+
+| 文件 | 改动 |
+|---|---|
+| `tsconfig.base.json` | 每个 Lumen 包一条路径别名 |
+| `tsconfig.host.json` | 每个 Lumen 服务端包一条项目引用 |
+| `.gitignore` | 忽略默认项目目录 `/projects/` |
+| `pnpm-lock.yaml` | Lumen 包的依赖段；冲突时重新运行 `pnpm install` 生成 |
+
+## 本地试运行
+
+在组合包（第 4 步）完成之前，用开发 patch 挂载已迁移的插件：
+
+```sh
+LUMEN_PROJECT_ROOT=~/某个项目目录 pnpm dsh --profile web --patch packages/lumen/dev/workbench.patch.yml
+```
+
+不设置 `LUMEN_PROJECT_ROOT` 时，项目放在仓库内的 `projects/` 目录；旧变量 `SIMIN_PROJECT_ROOT` 仍然有效。
+
 ## 运行环境
 
 需要 Node ≥ 24.9。工具链放在仓库外层的 `.toolchain/node-v24.22.2-darwin-arm64/` 中。

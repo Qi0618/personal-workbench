@@ -1,20 +1,22 @@
 # 迁移清单
 
+进度：第 0 步 ✅ · 第 1 步 ✅（后端插件 `@lumen/workbench-host`）
+
 来源：`git diff dsh-v0.2.1-alpha.1 fork/main`，已排除测试、README 和翻译文件。完成一项勾选一项；如果某项确认不再需要，划掉并注明原因。
 
 ## 代码文件
 
 ### 后端功能（→ 第 1 步：服务端插件）
 
-- [ ] `packages/bundle/web-app/cordis.patch.yml`（修改）
-- [ ] `packages/bundle/web-app/package.json`（修改）
-- [ ] `packages/bundle/web-app/src/aipm-products.ts`（新增）
-- [ ] `packages/bundle/web-app/src/index.ts`（修改）
-- [ ] `packages/bundle/web-app/src/simin-files.ts`（新增）
-- [ ] `packages/bundle/web-app/src/simin-proposals.ts`（新增）
-- [ ] `packages/bundle/web-app/src/simin-workspaces.ts`（新增）
-- [ ] `packages/bundle/web-app/tsconfig.json`（修改）
-- [ ] `packages/bundle/web-app/tsdown.config.ts`（新增）
+- [x] `packages/bundle/web-app/cordis.patch.yml`（修改）：`projectRoot` 已改由 `LUMEN_PROJECT_ROOT` / `SIMIN_PROJECT_ROOT` 传给 `@lumen/workbench-host`；会话搜索开关转到零散修复
+- [x] `packages/bundle/web-app/package.json`（修改）：依赖改由 `@lumen/workbench-host` 自己声明
+- [x] `packages/bundle/web-app/src/aipm-products.ts`（新增）：→ `workbench-host/src/aipm-products.ts`；去掉了自写的本机校验，改走 `connection.requestRejection`
+- [x] `packages/bundle/web-app/src/index.ts`（修改）：挂载逻辑 → `workbench-host/src/index.ts`
+- [x] `packages/bundle/web-app/src/simin-files.ts`（新增）：→ `workbench-host/src/simin-files.ts`，未改动
+- [x] `packages/bundle/web-app/src/simin-proposals.ts`（新增）：→ `workbench-host/src/simin-proposals.ts`；按当前工作目录判断，拦截名单新增 `pwsh`、`terminal_*`、`create_worktree`
+- [x] `packages/bundle/web-app/src/simin-workspaces.ts`（新增）：→ `workbench-host/src/simin-workspaces.ts`，未改动
+- [x] `packages/bundle/web-app/tsconfig.json`（修改）：项目引用改由新包自己声明
+- [x] `packages/bundle/web-app/tsdown.config.ts`（新增）：不再需要：新包由根目录 tsdown 自动发现
 
 ### 前端界面（→ 第 2 步：客户端插件）
 
@@ -118,6 +120,7 @@
 
 ### 零散修复（→ 第 5 步：逐条核对）
 
+- [ ] `packages/bundle/web-app/cordis.patch.yml` 中的 `session-query-sqlite.openAt`：desktop profile 下首次搜索时才开启会话全文搜索
 - [ ] `packages/client/modules/src/index.ts`（修改）
 - [ ] `packages/client/web/src/boot.ts`（修改）
 - [ ] `packages/client/web/src/mount.ts`（修改）
