@@ -12,8 +12,8 @@
 
 | 目录 | 包名 | 职责 | 迁移步骤 |
 |---|---|---|---|
-| `workbench-host/` | `@lumen/workbench-host` | 项目文件、写入审阅、AIPM 接口路由（服务端插件） | 第 1 步 |
-| `workbench-ui/` | `@lumen/workbench-ui` | SiminShell、产品侧栏、阶段面板、新建项目对话框（客户端插件，通过插槽挂载） | 第 2 步 |
+| `workbench-host/` | `@lumen/workbench-host` | 项目文件、写入审阅、AIPM 接口路由（服务端插件） | 第 1 步 ✅ |
+| `workbench-ui/` | `@lumen/workbench-ui` | 全部项目页、项目主页、左栏项目导航、写入确认卡片和右栏「待确认」（客户端插件，通过插槽挂载） | 第 2 步 ✅ |
 | `brand/` | `@lumen/brand` | Lumen 名称、Logo、欢迎页文案 | 第 3 步 |
 | `bundle/` | `@lumen/bundle` | 把以上插件组装成组合包，作为 desktop profile 的默认组合包 | 第 4 步 |
 
@@ -37,6 +37,7 @@ merge 上游时只有这些文件可能冲突。每处都只是追加几行，�
 |---|---|
 | `tsconfig.base.json` | 每个 Lumen 包一条路径别名 |
 | `tsconfig.host.json` | 每个 Lumen 服务端包一条项目引用 |
+| `tsconfig.client.json` | 每个 Lumen 客户端包一条项目引用 |
 | `.gitignore` | 忽略默认项目目录 `/projects/` |
 | `pnpm-lock.yaml` | Lumen 包的依赖段；冲突时重新运行 `pnpm install` 生成 |
 

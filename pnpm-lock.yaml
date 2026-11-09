@@ -13550,6 +13550,12 @@ importers:
         specifier: workspace:*
         version: link:../../workspace/workspace
 
+  packages/lumen/workbench-ui:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+
   packages/mcp/mcp-client:
     dependencies:
       '@deepseek-ai/dsh-util-values':

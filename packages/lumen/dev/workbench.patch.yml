@@ -1,5 +1,5 @@
 # Development overlay until the Lumen bundle exists (migration step 4):
-#   dsh web --patch packages/lumen/dev/workbench.patch.yml
+#   pnpm dsh --profile web --patch packages/lumen/dev/workbench.patch.yml
 # LUMEN_PROJECT_ROOT (or the legacy SIMIN_PROJECT_ROOT) picks the project directory;
 # without either, projects live in <repository>/projects.
 - insert:
@@ -7,3 +7,13 @@
       name: '@lumen/workbench-host'
       config:
         projectRoot: !!js process.env.LUMEN_PROJECT_ROOT ?? process.env.SIMIN_PROJECT_ROOT
+
+    # Browser half: project pages, sidebar navigation, and write review.
+    - id: lumen-workbench-ui
+      name: '@lumen/workbench-ui'
+
+# On macOS folders synced by iCloud (such as Desktop), bundle ctimes change
+# without any rebuild, and upstream client HMR then reloads browser plugins
+# mid-use. Keep it off until the ctime-only fix lands (MIGRATION.zh.md, step 5).
+- id: client-hmr
+  disabled: true
