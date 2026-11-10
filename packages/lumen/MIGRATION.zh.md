@@ -1,8 +1,8 @@
 # 迁移清单
 
-进度：第 0 步 ✅ · 第 1 步 ✅（后端插件 `@lumen/workbench-host`）· 第 2 步 ✅（前端插件 `@lumen/workbench-ui`，按新设计重做）· 第 3 步 ✅（品牌插件 `@lumen/brand` + 外壳补丁）
+进度：第 0 步 ✅ · 第 1 步 ✅（后端插件 `@lumen/workbench-host`）· 第 2 步 ✅（前端插件 `@lumen/workbench-ui`，按新设计重做）· 第 3 步 ✅（品牌插件 `@lumen/brand` + 外壳补丁）· 第 4 步 ✅ 网页版（组合包 `@lumen/bundle`；桌面版待定）
 
-来源：`git diff dsh-v0.2.1-alpha.1 fork/main`，已排除测试、README 和翻译文件。完成一项勾选一项；如果某项确认不再需要，划掉并注明原因。
+来源：`git diff dsh-v0.2.1-alpha.1 legacy-main`（旧版 `main`，本地标签），已排除测试、README 和翻译文件。完成一项勾选一项；如果某项确认不再需要，划掉并注明原因。
 
 ## 代码文件
 
@@ -78,7 +78,7 @@
 
 ### 品牌与桌面外壳（→ 第 3 步）
 
-第 4 步需接上：启动脚本和打包流程构建时要设置 `DSH_CLIENT_TITLE=Lumen`，否则标签页标题仍是上游默认值；正式打包走 `official` 构建配置时，标题会被固定为 DeepSeek Harness，这一点需要在第 4 步一并处理。
+标签页标题来自构建变量 `DSH_CLIENT_TITLE`。第 4 步起用 `pnpm --filter @lumen/bundle build:app` 构建，它会带上 `DSH_CLIENT_TITLE=Lumen`。上游 `official` 构建配置固定标题为 DeepSeek Harness，Lumen 不使用该配置。
 
 - [x] `apps/desktop/installer/assets/brand-2x.png`（修改）：由 `brand/scripts/render-brand-assets.ts` 生成
 - [x] `apps/desktop/installer/assets/brand-dark-2x.png`（修改）：同上
@@ -100,8 +100,8 @@
 - [x] ~~`apps/desktop/resources/simin.svg`（新增）~~：不再需要：旧版图标素材
 - [x] `apps/desktop/resources/tray-windows.ico`（修改）：用上游 `render:tray-icon` 从新图标生成
 - [ ] `apps/desktop/scripts/dev.ts`（修改）：转到第 5 步：其中给开发版传 `DSH_DESKTOP_PRIMARY_RUNTIME_DIR` 的部分属于修复，需核对上游是否已修
-- [ ] `apps/desktop/scripts/development-app.ts`（修改）：**未迁移**：桌面开发版的应用名和图标（「Harness Dev」→「Lumen」），只影响 `pnpm dev:desktop`，第 4 步再定
-- [ ] `apps/desktop/scripts/package-simin-local.mjs`（新增）：转到第 4 步：本机打包脚本
+- [ ] `apps/desktop/scripts/development-app.ts`（修改）：**未迁移**：桌面开发版的应用名和图标（「Harness Dev」→「Lumen」），只影响 `pnpm dev:desktop`；随桌面版一起处理
+- [ ] `apps/desktop/scripts/package-simin-local.mjs`（新增）：**未迁移**：本机打包 Lumen.app 的脚本。桌面版使用自己的配置目录和固定的包集合，让它加载 `@lumen/bundle` 需要改桌面端的打包流程，单独处理
 - [x] `apps/desktop/scripts/render-lumen-brand.mjs`（新增）：由 `brand/scripts/render-brand-assets.ts` 取代
 - [x] `apps/desktop/scripts/render-tray-icon.ts`（修改）：不再需要：新图标沿用上游坐标，脚本不用改
 - [x] ~~`apps/desktop/src/client/WelcomePage.tsx`（修改）~~：不迁移：旧版隐藏了副标题，保留上游排版

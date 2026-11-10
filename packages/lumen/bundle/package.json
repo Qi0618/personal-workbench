@@ -1,0 +1,40 @@
+{
+  "name": "@lumen/bundle",
+  "description": "Lumen profile bundle: the workbench, its browser pages, and the Lumen brand as one patch layer over the web profile",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "cordis.patch.yml",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@lumen/brand": "workspace:*",
+    "@lumen/workbench-host": "workspace:*",
+    "@lumen/workbench-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-client-ui-settings-models": "workspace:*"
+  },
+  "scripts": {
+    "build:app": "cd ../../.. && DSH_CLIENT_TITLE=Lumen pnpm run build"
+  }
+}

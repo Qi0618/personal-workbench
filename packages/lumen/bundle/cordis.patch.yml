@@ -1,8 +1,8 @@
-# Development overlay until the Lumen bundle exists (migration step 4):
-#   pnpm dsh --profile web --patch packages/lumen/dev/workbench.patch.yml
+# Lumen layer, stacked after @deepseek-ai/dsh-base and @deepseek-ai/dsh-web-app.
 # LUMEN_PROJECT_ROOT (or the legacy SIMIN_PROJECT_ROOT) picks the project directory;
 # without either, projects live in <repository>/projects.
 - insert:
+    # Project documents, reviewed writes, and the /aipm routes.
     - id: lumen-workbench-host
       name: '@lumen/workbench-host'
       config:
@@ -19,6 +19,13 @@
 # The DeepSeek whale artwork behind a blank conversation; Lumen has its own mark.
 - id: ui-brand-official
   disabled: true
+
+# The DeepSeek Harness preview notice: marked as read, so it never opens.
+# The value must equal WELCOME_NOTICE_VERSION in ui-settings-models; the bundle
+# test fails when an upstream merge changes it.
+- id: ui-settings-general
+  config:
+    welcomeNoticeVersion: 2026-09-28.1
 
 # On macOS folders synced by iCloud (such as Desktop), bundle ctimes change
 # without any rebuild, and upstream client HMR then reloads browser plugins

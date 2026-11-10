@@ -247,6 +247,7 @@
       "@deepseek-ai/dsh-host-open-in-app": ["./packages/host/open-in-app/src"],
       "@deepseek-ai/dsh-host-open-in-app/shared": ["./packages/host/open-in-app/src/shared.ts"],
       "@lumen/workbench-host": ["./packages/lumen/workbench-host/src"],
+      "@lumen/bundle": ["./packages/lumen/bundle/src"],
       "@lumen/brand": ["./packages/lumen/brand/src/index.ts"],
       "@lumen/brand/client": ["./packages/lumen/brand/src/client/index.ts"],
       "@lumen/brand/src/*": ["./packages/lumen/brand/src/*"],
