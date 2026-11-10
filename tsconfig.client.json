@@ -133,6 +133,7 @@
     { "path": "./packages/client/ui-sidebar-right" },
     { "path": "./packages/client/ui-entry-customization" },
     { "path": "./packages/lumen/workbench-ui" },
+    { "path": "./packages/lumen/brand" },
     { "path": "./packages/client/ui-sidebar-documentpreview/tsconfig.client.json" },
     { "path": "./packages/client/ui-sidebar-browser/tsconfig.client.json" },
     { "path": "./packages/client/ui-sidebar-files" },

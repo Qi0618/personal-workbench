@@ -12,6 +12,14 @@
     - id: lumen-workbench-ui
       name: '@lumen/workbench-ui'
 
+    # Lumen name, mark and accent color in the upstream brand seats.
+    - id: lumen-brand
+      name: '@lumen/brand'
+
+# The DeepSeek whale artwork behind a blank conversation; Lumen has its own mark.
+- id: ui-brand-official
+  disabled: true
+
 # On macOS folders synced by iCloud (such as Desktop), bundle ctimes change
 # without any rebuild, and upstream client HMR then reloads browser plugins
 # mid-use. Keep it off until the ctime-only fix lands (MIGRATION.zh.md, step 5).

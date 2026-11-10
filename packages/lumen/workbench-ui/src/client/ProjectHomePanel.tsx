@@ -135,7 +135,7 @@ export function ProjectHomePanel({ useWorkbench, useSessionRows, nav }: InjectFa
                 <div className={css.rows}>
                   {conversations.map(item => (
                     <button key={item.id} type="button" className={css.row} onClick={() => { void nav.openChat(project.path, { sessionId: item.id }) }}>
-                      <span className={css.rowIcon} style={{ color: '#4f46e5' }}><IconChat size={15} /></span>
+                      <span className={css.rowIcon} style={{ color: 'var(--lm-accent)' }}><IconChat size={15} /></span>
                       <div><div className={css.rowTitle}>{item.title}</div></div>
                       <span className={css.muted}>{shortDate(item.updatedAt)}</span>
                     </button>

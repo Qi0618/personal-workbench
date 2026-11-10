@@ -4,7 +4,7 @@
 
 ## 设计原则
 
-- **上游代码不改**。工作台、品牌等功能都以 Cordis 插件或组合包的形式挂载。
+- **上游代码尽量不改**。工作台、品牌等功能都以 Cordis 插件或组合包的形式挂载；无法插件化的少数地方（桌面外壳、加载页、图标文件）以「外壳补丁」形式改动，见下表。
 - **跟进上游只需 merge**。`git merge upstream/master` 产生的冲突应只出现在桌面外壳补丁上。
 - **一个功能一个包**。每个包都按上游规范接入构建（`package.json`、`tsconfig.json`、README）。
 
@@ -14,7 +14,7 @@
 |---|---|---|---|
 | `workbench-host/` | `@lumen/workbench-host` | 项目文件、写入审阅、AIPM 接口路由（服务端插件） | 第 1 步 ✅ |
 | `workbench-ui/` | `@lumen/workbench-ui` | 全部项目页、项目主页、左栏项目导航、写入确认卡片和右栏「待确认」（客户端插件，通过插槽挂载） | 第 2 步 ✅ |
-| `brand/` | `@lumen/brand` | Lumen 名称、Logo、欢迎页文案 | 第 3 步 |
+| `brand/` | `@lumen/brand` | 侧栏与空白对话页的 Lumen 标志和名称、靛蓝主色（客户端插件）；`scripts/render-brand-assets.ts` 生成所有替换上游的图标文件 | 第 3 步 ✅ |
 | `bundle/` | `@lumen/bundle` | 把以上插件组装成组合包，作为 desktop profile 的默认组合包 | 第 4 步 |
 
 包会在对应步骤有代码时再创建，避免空包触发构建检查失败。
@@ -41,9 +41,26 @@ merge 上游时只有这些文件可能冲突。每处都只是追加几行，�
 | `.gitignore` | 忽略默认项目目录 `/projects/` |
 | `pnpm-lock.yaml` | Lumen 包的依赖段；冲突时重新运行 `pnpm install` 生成 |
 
+### 外壳补丁（第 3 步）
+
+这些改动无法插件化。冲突时保留上游版本，再按「处理方式」重做。
+
+| 文件 | 改动 | 冲突时的处理方式 |
+|---|---|---|
+| `apps/desktop/src/lumen-brand.ts` | 新文件：把桌面端文案里的产品名替换为 Lumen | 无需处理 |
+| `apps/desktop/src/locale.ts` | 字典定义后加一行 `applyLumenName(dictionaries)` | 重新加这一行 |
+| `apps/desktop/src/main.ts` | 「关于」面板的 `applicationName` 改为 `LUMEN_PRODUCT_NAME` | 重新改这一处 |
+| `apps/desktop/tsconfig.client.json` | `include` 加入 `src/lumen-brand.ts` | 重新加 |
+| `packages/client/web/src/boot-page.ts` | 加载页文字 `HARNESS` → `LUMEN` | 重新改这一处 |
+| `apps/web/index.html`、`apps/web/public/manifest.webmanifest` | 主屏幕名称、应用名改为 Lumen | 重新改 |
+| 图标文件：`apps/web/public/` 的 favicon 与 PNG，`apps/desktop/resources/` 的图标，`apps/desktop/renderer/assets/welcome-brand.svg`，`apps/desktop/installer/assets/` | Lumen 标志 | 依次运行：`pnpm --filter @lumen/brand render-assets`、`pnpm --filter @deepseek-ai/dsh-desktop render:tray-icon`、`pnpm --filter @deepseek-ai/dsh-web-frontend render:app-icons` |
+| 上游测试：`apps/desktop/tests/` 中的 `background-notice`、`quit-confirmation`、`tray`、`main-startup` 和 `expected/` 下的快照，`packages/client/web/tests/boot-page.client.spec.ts` | 期望值中的产品名改为 Lumen | 重新替换产品名；快照用 `vitest run -u` 更新 |
+
+浏览器标签页标题来自构建变量：构建时设置 `DSH_CLIENT_TITLE=Lumen`（`DSH_CLIENT_TITLE=Lumen pnpm run build`）。
+
 ## 本地试运行
 
-在组合包（第 4 步）完成之前，用开发 patch 挂载已迁移的插件：
+在组合包（第 4 步）完成之前，用开发 patch 挂载已迁移的插件（patch 同时禁用了上游的鲸鱼背景 `ui-brand-official`）：
 
 ```sh
 LUMEN_PROJECT_ROOT=~/某个项目目录 pnpm dsh --profile web --patch packages/lumen/dev/workbench.patch.yml

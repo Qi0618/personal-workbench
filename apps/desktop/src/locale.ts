@@ -1,5 +1,7 @@
 /** Typed shell copy for every shipped language owned by the Electron shell. */
 
+import { applyLumenName } from './lumen-brand.ts'
+
 export const en = {
   cliCommandMenu: 'Manage dsh Command…',
   cliCommandTitle: 'Manage dsh Command',
@@ -1530,6 +1532,8 @@ export const pt = {
 } satisfies DesktopMessages
 
 const dictionaries = { en, zh, ja, es, fr, de, ru, pt }
+// Lumen shell patch: the product name is replaced in one place (lumen-brand.ts).
+applyLumenName(dictionaries)
 
 /** Locale payload exposed to the Desktop-owned renderer. */
 export interface DesktopLocale {

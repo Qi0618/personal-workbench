@@ -8,7 +8,7 @@
   --lm-muted: var(--dsw-alias-label-tertiary, #6b7079);
   --lm-line: var(--dsw-alias-border-l4, #ecebe7);
   --lm-hover: var(--dsw-alias-interactive-bg-hover, rgb(21 23 28 / 0.05));
-  --lm-accent: #4f46e5;
+  --lm-accent: var(--lumen-accent, #4f46e5);
   --lm-accent-ink: #4338ca;
   --lm-accent-soft: color-mix(in srgb, #4f46e5 10%, var(--lm-bg));
   --lm-wait: #b45309;

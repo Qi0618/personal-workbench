@@ -148,7 +148,7 @@ export function ProjectsPanel({ useWorkbench, nav }: InjectFace<WorkbenchFace>) 
               <ProjectCard key={project.path} project={project} onOpen={() => { nav.openProject(project.path) }} />
             ))}
             <button type="button" className={css.newCard} onClick={() => { setCreating(true) }}>
-              <span className={css.newIcon} style={{ color: '#4f46e5' }}><IconPlus size={20} /></span>
+              <span className={css.newIcon} style={{ color: 'var(--lm-accent)' }}><IconPlus size={20} /></span>
               <strong style={{ fontSize: 16 }}>新建项目</strong>
               <span className={css.muted} style={{ maxWidth: 220, fontSize: 13 }}>从一个想法开始，或导入已有的资料文件夹</span>
             </button>

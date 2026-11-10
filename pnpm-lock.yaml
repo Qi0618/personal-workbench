@@ -13519,6 +13519,16 @@ importers:
         specifier: workspace:*
         version: link:../../session/working-directory
 
+  packages/lumen/brand:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+    devDependencies:
+      sharp:
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@22.20.1)
+
   packages/lumen/workbench-host:
     dependencies:
       '@deepseek-ai/schemastery':

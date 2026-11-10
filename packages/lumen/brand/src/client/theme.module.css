@@ -1,0 +1,34 @@
+/*
+ * Lumen accent: the upstream DeepSeek blue scale re-tinted to indigo, so the
+ * send button, links, focus rings and active states match the workbench pages.
+ * `html body` outranks the theme's own `body` rules without !important.
+ */
+:global(html body) {
+  --lumen-accent: #4f46e5;
+  --dsw-static-deepseek-50: rgb(238, 242, 255);
+  --dsw-static-deepseek-100: rgb(224, 231, 255);
+  --dsw-static-deepseek-200: rgb(199, 210, 254);
+  --dsw-static-deepseek-300: rgb(165, 180, 252);
+  --dsw-static-deepseek-400: rgb(129, 140, 248);
+  --dsw-static-deepseek-450: rgb(99, 102, 241);
+  --dsw-static-deepseek-500: rgb(79, 70, 229);
+  --dsw-static-deepseek-600: rgb(67, 56, 202);
+  --dsw-static-deepseek-700-delete: rgb(55, 48, 163);
+  --dsw-static-deepseek-800: rgb(49, 46, 129);
+  --dsw-static-deepseek-900: rgb(30, 27, 75);
+}
+
+:global(html body[data-ds-dark-theme]) {
+  --lumen-accent: #818cf8;
+  --dsw-static-deepseek-50: rgb(238, 242, 255);
+  --dsw-static-deepseek-100: rgb(224, 231, 255);
+  --dsw-static-deepseek-200: rgb(199, 210, 254);
+  --dsw-static-deepseek-300: rgb(165, 180, 252);
+  --dsw-static-deepseek-400: rgb(129, 140, 248);
+  --dsw-static-deepseek-450: rgb(99, 102, 241);
+  --dsw-static-deepseek-500: rgb(79, 70, 229);
+  --dsw-static-deepseek-600: rgb(67, 56, 202);
+  --dsw-static-deepseek-700-delete: rgb(55, 48, 163);
+  --dsw-static-deepseek-800: rgb(49, 46, 129);
+  --dsw-static-deepseek-900: rgb(30, 27, 75);
+}

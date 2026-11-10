@@ -47,16 +47,6 @@ function Stroke({ size = 16, children, width = 1.8 }: { size?: number | undefine
   )
 }
 
-/** The Lumen mark: a disc split by a gap of light. */
-export function LumenMark({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M11 3a9 9 0 0 0 0 18z" fill="currentColor" />
-      <path d="M13 3a9 9 0 0 1 0 18z" fill="#4f46e5" />
-    </svg>
-  )
-}
-
 export const IconGrid = ({ size }: { size?: number | undefined }) => <Stroke size={size}><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></Stroke>
 export const IconHome = ({ size }: { size?: number | undefined }) => <Stroke size={size}><path d="M4 11l8-7 8 7v9H4z" /></Stroke>
 export const IconChat = ({ size }: { size?: number | undefined }) => <Stroke size={size}><path d="M5 5h14v10H9l-4 4z" /></Stroke>
